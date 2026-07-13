@@ -24,6 +24,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Supabase secrets
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$PUBLIC_SUPABASE_URL" ] || [ -z "$PUBLIC_SUPABASE_ANON_KEY" ]; then
+            echo "::error::Missing GitHub Actions secrets PUBLIC_SUPABASE_URL and/or PUBLIC_SUPABASE_ANON_KEY."
+            echo "Add them under Settings → Secrets and variables → Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "Supabase secrets are present."
       - name: Build
         env:
           # For project pages use /repo-name; for user/org site leave empty

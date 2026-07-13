@@ -4,7 +4,7 @@
 	import { base, resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.svg';
 	import { setActiveHouseholdId } from '$lib/householdStore';
-	import { supabase } from '$lib/supabase';
+	import { getSupabaseConfigError, supabase } from '$lib/supabase';
 	import type { Session } from '@supabase/supabase-js';
 	import './layout.css';
 
@@ -12,6 +12,7 @@
 
 	let session = $state<Session | null>(null);
 	let ready = $state(false);
+	let configError = $state<string | null>(null);
 
 	const nav = [
 		{ href: '/dashboard', label: 'Dashboard' },
@@ -23,6 +24,12 @@
 
 	$effect(() => {
 		let mounted = true;
+		const missing = getSupabaseConfigError();
+		if (missing) {
+			configError = missing;
+			ready = true;
+			return;
+		}
 
 		supabase.auth.getSession().then(({ data }) => {
 			if (!mounted) return;
@@ -84,7 +91,25 @@
 	{/if}
 
 	<main class="main">
-		{@render children()}
+		{#if configError}
+			<section class="config-error">
+				<p class="eyebrow">Configuration</p>
+				<h1>Supabase is not configured for this deploy</h1>
+				<p>{configError}</p>
+				<ol>
+					<li>
+						Repo → Settings → Secrets and variables → Actions
+					</li>
+					<li>
+						Add <code>PUBLIC_SUPABASE_URL</code> and
+						<code>PUBLIC_SUPABASE_ANON_KEY</code>
+					</li>
+					<li>Re-run the “Deploy to GitHub Pages” workflow</li>
+				</ol>
+			</section>
+		{:else}
+			{@render children()}
+		{/if}
 	</main>
 </div>
 
@@ -182,5 +207,42 @@
 		width: min(1100px, 100%);
 		margin: 0 auto;
 		padding: 1.5rem clamp(1rem, 3vw, 2rem) 3rem;
+	}
+
+	.config-error {
+		max-width: 40rem;
+		margin: 2rem auto;
+		padding: 1.5rem;
+		border-radius: 1.15rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow);
+		color: var(--text);
+	}
+
+	.config-error .eyebrow {
+		margin: 0;
+		font-size: 0.72rem;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--accent);
+		font-family: var(--font-display);
+	}
+
+	.config-error h1 {
+		margin: 0.35rem 0 0.75rem;
+		font-family: var(--font-display);
+		font-size: 1.45rem;
+	}
+
+	.config-error ol {
+		margin: 0.75rem 0 0;
+		padding-left: 1.2rem;
+		color: var(--text-muted);
+		line-height: 1.55;
+	}
+
+	.config-error code {
+		font-size: 0.9em;
 	}
 </style>
