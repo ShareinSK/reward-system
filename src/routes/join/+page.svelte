@@ -21,8 +21,8 @@
 		supabase.auth.getSession().then(({ data }) => {
 			if (!cancelled && !data.session) {
 				const joinCode = code || page.url.searchParams.get('code') || '';
-				const next = `${resolve('/join')}?code=${encodeURIComponent(joinCode)}`;
-				goto(`${resolve('/login')}?next=${encodeURIComponent(next)}`, { replaceState: true });
+				const next = `${resolve('/join/')}?code=${encodeURIComponent(joinCode)}`;
+				goto(`${resolve('/')}?next=${encodeURIComponent(next)}`, { replaceState: true });
 			}
 		});
 		return () => {
@@ -39,7 +39,7 @@
 			const hid = await joinHouseholdByCode(code);
 			setActiveHouseholdId(hid);
 			success = 'Joined! You can now manage this household’s rewards.';
-			setTimeout(() => goto(resolve('/dashboard'), { replaceState: true }), 700);
+			setTimeout(() => goto(resolve('/dashboard/'), { replaceState: true }), 700);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {

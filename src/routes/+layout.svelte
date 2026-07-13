@@ -52,10 +52,10 @@
 	async function signOut() {
 		setActiveHouseholdId(null);
 		await supabase.auth.signOut();
-		goto(resolve('/login'), { replaceState: true });
+		goto(resolve('/'), { replaceState: true });
 	}
 
-	const path = $derived(page.url.pathname.replace(base, '') || '/');
+	const path = $derived((page.url.pathname.replace(base, '') || '/').replace(/\/$/, '') || '/');
 </script>
 
 <svelte:head>
@@ -70,16 +70,16 @@
 </svelte:head>
 
 <div class="app-shell">
-	{#if ready && session && path !== '/login'}
+	{#if ready && session && path !== '/' && !path.startsWith('/login')}
 		<header class="topbar">
-			<a class="brand" href={resolve('/dashboard')}>
+			<a class="brand" href={resolve('/dashboard/')}>
 				<span class="brand__mark" aria-hidden="true"></span>
 				<span class="brand__name">Reward System</span>
 			</a>
 			<nav>
 				{#each nav as item}
 					<a
-						href={resolve(item.href)}
+						href={resolve(`${item.href}/`)}
 						class:active={path === item.href || path.startsWith(item.href + '/')}
 					>
 						{item.label}

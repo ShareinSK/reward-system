@@ -23,7 +23,7 @@
 
 	const inviteLink = $derived(
 		household
-			? `${page.url.origin}${resolve('/join')}?code=${encodeURIComponent(household.invite_code)}`
+			? `${page.url.origin}${resolve('/join/')}?code=${encodeURIComponent(household.invite_code)}`
 			: ''
 	);
 
@@ -35,7 +35,7 @@
 				data: { session }
 			} = await supabase.auth.getSession();
 			if (!session) {
-				goto(resolve('/login'), { replaceState: true });
+				goto(resolve('/'), { replaceState: true });
 				return;
 			}
 			const hid = await ensureHouseholdId();
@@ -148,7 +148,7 @@
 			</ul>
 			<p class="muted tip">
 				Already have a code from someone else?
-				<a href={resolve('/join')}>Join another household</a>
+				<a href={resolve('/join/')}>Join another household</a>
 			</p>
 		</div>
 	{/if}

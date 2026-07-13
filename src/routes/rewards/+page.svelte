@@ -21,7 +21,7 @@
 				data: { session }
 			} = await supabase.auth.getSession();
 			if (!session) {
-				goto(resolve('/login'), { replaceState: true });
+				goto(resolve('/'), { replaceState: true });
 				return;
 			}
 			setActiveHouseholdId(await ensureHouseholdId());
