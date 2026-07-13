@@ -1,0 +1,73 @@
+import { supabase } from './supabase';
+import type { Household, HouseholdMember } from './types';
+
+/** Ensure the signed-in user has an active household; returns its id. */
+export async function ensureHouseholdId(): Promise<string> {
+	const { data, error } = await supabase.rpc('ensure_my_household');
+	if (error) throw error;
+	return data as string;
+}
+
+export async function fetchHousehold(householdId: string): Promise<Household> {
+	const { data, error } = await supabase
+		.from('households')
+		.select('*')
+		.eq('id', householdId)
+		.single();
+	if (error) throw error;
+	return data as Household;
+}
+
+export async function fetchHouseholdMembers(householdId: string): Promise<HouseholdMember[]> {
+	const { data: rows, error } = await supabase
+		.from('household_members')
+		.select('household_id, user_id, role, joined_at')
+		.eq('household_id', householdId)
+		.order('joined_at', { ascending: true });
+	if (error) throw error;
+
+	const members = rows ?? [];
+	const ids = members.map((m) => m.user_id as string);
+	const nameById = new Map<string, string>();
+
+	if (ids.length) {
+		const { data: profiles, error: profileError } = await supabase
+			.from('profiles')
+			.select('id, display_name')
+			.in('id', ids);
+		if (profileError) throw profileError;
+		for (const p of profiles ?? []) {
+			nameById.set(p.id as string, (p.display_name as string) || 'Member');
+		}
+	}
+
+	return members.map((row) => ({
+		household_id: row.household_id as string,
+		user_id: row.user_id as string,
+		role: row.role as HouseholdMember['role'],
+		joined_at: row.joined_at as string,
+		display_name: nameById.get(row.user_id as string) ?? 'Member'
+	}));
+}
+
+export async function joinHouseholdByCode(code: string): Promise<string> {
+	const { data, error } = await supabase.rpc('join_household_by_code', {
+		p_code: code.trim()
+	});
+	if (error) throw error;
+	return data as string;
+}
+
+export async function rotateInviteCode(): Promise<string> {
+	const { data, error } = await supabase.rpc('rotate_household_invite_code');
+	if (error) throw error;
+	return data as string;
+}
+
+export async function renameHousehold(householdId: string, name: string): Promise<void> {
+	const { error } = await supabase
+		.from('households')
+		.update({ name: name.trim() })
+		.eq('id', householdId);
+	if (error) throw error;
+}
