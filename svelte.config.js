@@ -15,7 +15,9 @@ const config = {
 		}),
 		paths: {
 			// Set BASE_PATH=/repo-name in CI for project pages; leave unset for user site or local dev
-			base: process.argv.includes('dev') ? '' : (process.env.BASE_PATH ?? '')
+			base: process.argv.includes('dev') ? '' : (process.env.BASE_PATH ?? ''),
+			// Absolute base avoids GitHub Pages reload loops from runtime-relative base detection
+			relative: false
 		},
 		prerender: {
 			// Follow every reachable link during build; SPA routes still fall back to 404.html

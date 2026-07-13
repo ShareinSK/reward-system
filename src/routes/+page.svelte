@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
 
 	onMount(async () => {
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		goto(session ? `${base}/dashboard` : `${base}/login`);
+		try {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			await goto(resolve(session ? '/dashboard' : '/login'), { replaceState: true });
+		} catch {
+			await goto(resolve('/login'), { replaceState: true });
+		}
 	});
 </script>
 

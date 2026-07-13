@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { joinHouseholdByCode } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
@@ -20,8 +20,9 @@
 		let cancelled = false;
 		supabase.auth.getSession().then(({ data }) => {
 			if (!cancelled && !data.session) {
-				const next = `${base}/join?code=${encodeURIComponent(code || page.url.searchParams.get('code') || '')}`;
-				goto(`${base}/login?next=${encodeURIComponent(next)}`);
+				const joinCode = code || page.url.searchParams.get('code') || '';
+				const next = `${resolve('/join')}?code=${encodeURIComponent(joinCode)}`;
+				goto(`${resolve('/login')}?next=${encodeURIComponent(next)}`, { replaceState: true });
 			}
 		});
 		return () => {
@@ -38,7 +39,7 @@
 			const hid = await joinHouseholdByCode(code);
 			setActiveHouseholdId(hid);
 			success = 'Joined! You can now manage this household’s rewards.';
-			setTimeout(() => goto(`${base}/dashboard`), 700);
+			setTimeout(() => goto(resolve('/dashboard'), { replaceState: true }), 700);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {

@@ -52,7 +52,7 @@
 	async function signOut() {
 		setActiveHouseholdId(null);
 		await supabase.auth.signOut();
-		goto(`${base}/login`);
+		goto(resolve('/login'), { replaceState: true });
 	}
 
 	const path = $derived(page.url.pathname.replace(base, '') || '/');

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import RewardVault from '$lib/components/RewardVault.svelte';
 	import {
 		claimGrandReward,
@@ -109,7 +109,7 @@
 				data: { session }
 			} = await supabase.auth.getSession();
 			if (!session) {
-				goto(`${base}/login`);
+				goto(resolve('/login'), { replaceState: true });
 				return;
 			}
 			try {

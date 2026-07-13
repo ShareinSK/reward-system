@@ -5,7 +5,7 @@
 	import { supabase } from '$lib/supabase';
 	import type { Activity } from '$lib/types';
 	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 
 	let activities = $state<Activity[]>([]);
 	let title = $state('');
@@ -21,7 +21,7 @@
 				data: { session }
 			} = await supabase.auth.getSession();
 			if (!session) {
-				goto(`${base}/login`);
+				goto(resolve('/login'), { replaceState: true });
 				return;
 			}
 			setActiveHouseholdId(await ensureHouseholdId());
