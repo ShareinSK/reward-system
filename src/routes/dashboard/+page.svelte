@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import RewardOpenOverlay from '$lib/components/RewardOpenOverlay.svelte';
 	import RewardVault from '$lib/components/RewardVault.svelte';
 	import {
 		claimGrandReward,
@@ -34,6 +35,7 @@
 	let error = $state('');
 	let saving = $state(false);
 	let allocateSuccess = $state('');
+	let openedReward = $state<GrandReward | null>(null);
 
 	let activities = $state<Activity[]>([]);
 	let rewards = $state<GrandReward[]>([]);
@@ -278,12 +280,17 @@
 		error = '';
 		try {
 			await claimGrandReward(activeParticipant.id, reward);
+			openedReward = reward;
 			await refreshLedger();
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
 			saving = false;
 		}
+	}
+
+	function closeRewardOverlay() {
+		openedReward = null;
 	}
 </script>
 
@@ -521,6 +528,10 @@
 		</details>
 	{/if}
 </section>
+
+{#if openedReward}
+	<RewardOpenOverlay reward={openedReward} onclose={closeRewardOverlay} />
+{/if}
 
 <style>
 	.dash {
