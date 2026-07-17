@@ -1,60 +1,49 @@
-# Reward System App
+# Reward System
 
-Gamified family/team points tracker. Static SvelteKit SPA on GitHub Pages + free-tier Supabase (Auth, Postgres, Edge Functions) + Threlte 3D vault.
+Turn everyday effort into something people can see, celebrate, and redeem.
 
-## Stack
+Reward System helps families, households, and small teams track positive behavior with points, clear goals, and meaningful rewards — without spreadsheets, sticky notes, or endless reminders.
 
-- SvelteKit 2 + Svelte 5 runes + `@sveltejs/adapter-static` (SPA / `404.html` fallback)
-- Tailwind CSS 4
-- Supabase (Email Auth, Postgres, Edge Function → Gemini 2.5 Flash)
-- Threlte (`@threlte/core` + `@threlte/extras`)
+## Why use it
 
-## Quick start
+**Motivation that sticks.** People earn points for real activities you define — chores, habits, teamwork, or milestones — so progress feels fair and tangible.
 
-1. Copy `.env.example` → `.env` and set `PUBLIC_SUPABASE_URL` + `PUBLIC_SUPABASE_ANON_KEY`.
-2. In Supabase SQL Editor, run [`supabase/schema.sql`](./supabase/schema.sql), then [`supabase/migration_households.sql`](./supabase/migration_households.sql).
-3. Deploy the AI function:
+**Rewards worth working toward.** Set grand rewards with point costs. When someone has enough, they claim it. The moment feels special: the reward vault opens and the win is celebrated.
 
-```bash
-supabase functions deploy parse-points-log
-supabase secrets set GEMINI_API_KEY=your-gemini-key
-```
+**Built for shared responsibility.** Invite a co-manager with a simple link or code. Parents, caregivers, or team leads can manage the same participants, activities, and ledger together.
 
-4. Install and run locally:
+**Clear progress at a glance.** See today’s totals, this week’s momentum, and each person’s balance — so recognition stays timely instead of getting lost.
 
-```bash
-npm install
-npm run dev
-```
+**Flexible to your rules.** Create your own activities and point values. Allow deductions when it fits your system, or keep things strictly positive.
 
-## Sharing with a co-manager
+**Fast to log.** Allocate points to one person or several at once. Prefer natural language? Describe what happened and confirm the suggested entry before it saves.
 
-1. Open **Share** in the nav.
-2. Copy the invite link or code.
-3. The other person signs up / signs in, opens the link (`/join?code=…`), and joins.
-4. Both people can manage the same participants, activities, rewards, and ledger.
-## GitHub Pages
+## Who it’s for
 
-- Workflow: [`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml)
-- Add repo secrets: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
-- Enable Pages → Source: **GitHub Actions**
-- `BASE_PATH` is set to `/<repo-name>` in CI (omit for a user/org root site)
+- **Families** building healthier routines around chores, homework, and kindness
+- **Households** sharing care duties with clear, visible appreciation
+- **Small teams or clubs** recognizing contribution without heavy HR tooling
+- **Anyone** who wants a lightweight, shared points-and-rewards system
 
-## App routes
+## How it works
 
-| Route | Purpose |
+1. **Set up your household** — add participants and the activities that earn (or cost) points.
+2. **Define the prizes** — create grand rewards people can save toward.
+3. **Log the wins** — allocate points as things happen, alone or with a co-manager.
+4. **Watch the vault fill** — progress toward the next reward stays visible.
+5. **Claim and celebrate** — when the balance is there, redeem the reward and enjoy the moment.
+
+## What you get
+
+| Capability | Advantage |
 | --- | --- |
-| `/login` | Email sign-up / sign-in |
-| `/dashboard` | Daily/weekly totals, allocate points, AI log, 3D vault, claim rewards |
-| `/participants` | Participant CRUD |
-| `/activities` | Activities (`default_points`, `allow_negative`) |
-| `/rewards` | Grand rewards CRUD |
-| `/share` | Invite co-managers (code + link) |
-| `/join` | Accept an invite code |
+| Custom activities & rewards | Fits *your* household or team culture, not a one-size-fits-all checklist |
+| Shared household access | Co-managers stay aligned without forwarding screenshots |
+| Daily & weekly totals | Spot streaks, dips, and who needs a nudge |
+| Point ledger | Transparent history builds trust |
+| Reward vault & claim experience | Turns abstract points into a memorable payoff |
+| Optional AI-assisted logging | Speeds up entry when you’re busy |
 
-## Key files requested in the architecture
+## Getting started
 
-1. [`svelte.config.js`](./svelte.config.js) + [`src/routes/+layout.ts`](./src/routes/+layout.ts) — static SPA for GitHub Pages  
-2. [`supabase/schema.sql`](./supabase/schema.sql) — Postgres schema, negative-points trigger, RLS  
-3. [`src/routes/dashboard/+page.svelte`](./src/routes/dashboard/+page.svelte) — runes + AI staging preview  
-4. [`src/lib/components/RewardVault.svelte`](./src/lib/components/RewardVault.svelte) — Threlte reward progress vault  
+Sign in, create your household, add participants and activities, then invite anyone who should help manage points. From there, logging and redeeming becomes part of the daily rhythm — not another chore.
