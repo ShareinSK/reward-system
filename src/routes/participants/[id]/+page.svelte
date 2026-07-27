@@ -9,7 +9,7 @@
 		fetchLedger,
 		fetchParticipants
 	} from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import { ensureHouseholdId, fetchHouseholdSettings } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
 		balanceForParticipant,
@@ -18,8 +18,10 @@
 		startOfLocalWeek,
 		sumPoints
 	} from '$lib/points';
+	import { formatPoints, settingsFromHousehold } from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { GrandReward, Participant, PointsLedgerEntry } from '$lib/types';
+	import type { GrandReward, HouseholdSettings, Participant, PointsLedgerEntry } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
 
 	let loading = $state(true);
 	let error = $state('');
@@ -28,8 +30,10 @@
 	let participant = $state<Participant | null>(null);
 	let rewards = $state<GrandReward[]>([]);
 	let ledger = $state<PointsLedgerEntry[]>([]);
+	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 
 	const participantId = $derived(page.params.id ?? '');
+	const decimals = $derived(settings.allow_decimal_points);
 
 	const participantLedger = $derived(
 		participant ? ledger.filter((e) => e.participant_id === participant!.id) : []
@@ -73,13 +77,16 @@
 				return;
 			}
 			try {
-				setActiveHouseholdId(await ensureHouseholdId());
-				const [people, rewardList, entries] = await Promise.all([
+				const hid = await ensureHouseholdId();
+				setActiveHouseholdId(hid);
+				const [people, rewardList, entries, s] = await Promise.all([
 					fetchParticipants(),
 					fetchGrandRewards(),
-					fetchLedger(500)
+					fetchLedger(500),
+					fetchHouseholdSettings(hid)
 				]);
 				if (cancelled) return;
+				settings = settingsFromHousehold(s);
 				const found = people.find((p) => p.id === id) ?? null;
 				if (!found) {
 					error = 'Participant not found.';
@@ -143,15 +150,15 @@
 		<div class="metrics">
 			<div class="metric">
 				<span class="metric__label">Today</span>
-				<strong class="metric__value">{dailyTotal.toFixed(1)}</strong>
+				<strong class="metric__value">{formatPoints(dailyTotal, decimals)}</strong>
 			</div>
 			<div class="metric">
 				<span class="metric__label">This week</span>
-				<strong class="metric__value">{weeklyTotal.toFixed(1)}</strong>
+				<strong class="metric__value">{formatPoints(weeklyTotal, decimals)}</strong>
 			</div>
 			<div class="metric metric--accent">
 				<span class="metric__label">Balance</span>
-				<strong class="metric__value">{totalBalance.toFixed(1)}</strong>
+				<strong class="metric__value">{formatPoints(totalBalance, decimals)}</strong>
 			</div>
 		</div>
 
@@ -161,7 +168,7 @@
 				{#if nextReward}
 					<p class="vault-hint">
 						Next goal: <strong>{nextReward.title}</strong> ·
-						{Number(nextReward.points_required).toFixed(1)} pts
+						{formatPoints(Number(nextReward.points_required), decimals)} pts
 					</p>
 				{/if}
 			</div>
@@ -173,7 +180,9 @@
 						<li>
 							<div>
 								<strong>{reward.title}</strong>
-								<span class="muted">{Number(reward.points_required).toFixed(1)} pts</span>
+								<span class="muted"
+									>{formatPoints(Number(reward.points_required), decimals)} pts</span
+								>
 							</div>
 							<button
 								type="button"
@@ -197,7 +206,7 @@
 				{#each participantLedger as entry (entry.id)}
 					<li>
 						<span class:points-neg={entry.points < 0} class:points-pos={entry.points > 0}>
-							{Number(entry.points) > 0 ? '+' : ''}{Number(entry.points).toFixed(1)}
+							{formatPoints(Number(entry.points), decimals, { signed: true })}
 						</span>
 						<span class="ledger-note">{entry.note || '—'}</span>
 						<time datetime={entry.created_at}>

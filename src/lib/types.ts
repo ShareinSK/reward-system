@@ -44,8 +44,20 @@ export type Household = {
 	id: string;
 	name: string;
 	invite_code: string;
+	allow_negative_points: boolean;
+	allow_decimal_points: boolean;
 	created_by: string | null;
 	created_at: string;
+};
+
+export type HouseholdSettings = {
+	allow_negative_points: boolean;
+	allow_decimal_points: boolean;
+};
+
+export const DEFAULT_HOUSEHOLD_SETTINGS: HouseholdSettings = {
+	allow_negative_points: false,
+	allow_decimal_points: false
 };
 
 export type HouseholdMember = {

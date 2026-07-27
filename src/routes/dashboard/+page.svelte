@@ -8,7 +8,10 @@
 		insertLedgerEntry,
 		parsePointsWithAi
 	} from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import {
+		ensureHouseholdId,
+		fetchHouseholdSettings
+	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
 		balanceForParticipant,
@@ -17,8 +20,22 @@
 		startOfLocalWeek,
 		sumPoints
 	} from '$lib/points';
+	import {
+		formatPoints,
+		normalizePoints,
+		pointsInputHint,
+		pointsStep,
+		settingsFromHousehold
+	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { Activity, AiLogPreview, Participant, PointsLedgerEntry } from '$lib/types';
+	import type {
+		Activity,
+		AiLogPreview,
+		HouseholdSettings,
+		Participant,
+		PointsLedgerEntry
+	} from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
 	import { untrack } from 'svelte';
 
 	let loading = $state(true);
@@ -29,6 +46,7 @@
 	let activities = $state<Activity[]>([]);
 	let participants = $state<Participant[]>([]);
 	let ledger = $state<PointsLedgerEntry[]>([]);
+	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 
 	let selectedActivityId = $state('');
 	let allocatePoints = $state(1);
@@ -39,6 +57,9 @@
 	let aiLoading = $state(false);
 	let aiPreview = $state<AiLogPreview | null>(null);
 	let aiError = $state('');
+
+	const step = $derived(pointsStep(settings.allow_decimal_points));
+	const inputHint = $derived(pointsInputHint(settings));
 
 	type LeaderRow = {
 		participant: Participant;
@@ -88,19 +109,24 @@
 				return;
 			}
 			try {
-				setActiveHouseholdId(await ensureHouseholdId());
-				const [a, p, l] = await Promise.all([
+				const hid = await ensureHouseholdId();
+				setActiveHouseholdId(hid);
+				const [a, p, l, s] = await Promise.all([
 					fetchActivities(),
 					fetchParticipants(),
-					fetchLedger()
+					fetchLedger(),
+					fetchHouseholdSettings(hid)
 				]);
 				if (cancelled) return;
 				activities = a;
 				participants = p;
 				ledger = l;
+				settings = settingsFromHousehold(s);
 				if (!untrack(() => selectedActivityId) && a[0]) {
 					selectedActivityId = a[0].id;
-					allocatePoints = Number(a[0].default_points);
+					allocatePoints = settings.allow_decimal_points
+						? Number(a[0].default_points)
+						: Math.round(Number(a[0].default_points));
 				}
 				const nextSelected: Record<string, boolean> = {};
 				for (const person of p) {
@@ -121,7 +147,11 @@
 
 	function onActivityChange() {
 		const activity = activities.find((a) => a.id === selectedActivityId);
-		if (activity) allocatePoints = Number(activity.default_points);
+		if (activity) {
+			allocatePoints = settings.allow_decimal_points
+				? Number(activity.default_points)
+				: Math.round(Number(activity.default_points));
+		}
 	}
 
 	function toggleAll(checked: boolean) {
@@ -152,9 +182,15 @@
 			return;
 		}
 
-		const points = Number(allocatePoints);
+		const points = normalizePoints(Number(allocatePoints), settings);
 		if (Number.isNaN(points) || points === 0) {
-			error = 'Points must be a non-zero number.';
+			error = settings.allow_negative_points
+				? 'Points must be a non-zero number.'
+				: 'Points must be a positive whole number (negatives are off in Settings).';
+			return;
+		}
+		if (points < 0 && !settings.allow_negative_points) {
+			error = 'Negative points are turned off in Settings.';
 			return;
 		}
 		if (points < 0 && !selectedActivity.allow_negative) {
@@ -175,7 +211,7 @@
 					})
 				)
 			);
-			allocateSuccess = `Added ${points > 0 ? '+' : ''}${points.toFixed(1)} pts to ${checkedParticipants.length} participant${checkedParticipants.length === 1 ? '' : 's'}.`;
+			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} pts to ${checkedParticipants.length} participant${checkedParticipants.length === 1 ? '' : 's'}.`;
 			allocateNote = '';
 			toggleAll(false);
 			await refreshLedger();
@@ -202,9 +238,17 @@
 					id,
 					title,
 					default_points: Number(default_points),
-					allow_negative
+					allow_negative: settings.allow_negative_points && allow_negative
 				}))
 			);
+			if (aiPreview) {
+				aiPreview = {
+					...aiPreview,
+					points: settings.allow_decimal_points
+						? Math.round(Number(aiPreview.points) * 10) / 10
+						: Math.round(Number(aiPreview.points))
+				};
+			}
 		} catch (err) {
 			aiError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -219,13 +263,20 @@
 		aiError = '';
 		try {
 			const activity = activities.find((a) => a.id === aiPreview!.activity_id);
-			if (aiPreview.points < 0 && !activity?.allow_negative) {
+			const points = normalizePoints(aiPreview.points, settings);
+			if (Number.isNaN(points) || points === 0) {
+				throw new Error('Points must be a non-zero number under current Settings.');
+			}
+			if (points < 0 && !settings.allow_negative_points) {
+				throw new Error('Negative points are turned off in Settings.');
+			}
+			if (points < 0 && !activity?.allow_negative) {
 				throw new Error('This activity does not allow negative points.');
 			}
 			await insertLedgerEntry({
 				participant_id: aiPreview.participant_id,
 				activity_id: aiPreview.activity_id,
-				points: aiPreview.points,
+				points,
 				note: aiText.trim()
 			});
 			aiText = '';
@@ -280,10 +331,13 @@
 								<span class="board-row__main">
 									<strong>{row.participant.name}</strong>
 									<span class="muted"
-										>Today {row.daily.toFixed(1)} · Week {row.weekly.toFixed(1)}</span
+										>Today {formatPoints(row.daily, settings.allow_decimal_points)} · Week
+										{formatPoints(row.weekly, settings.allow_decimal_points)}</span
 									>
 								</span>
-								<span class="board-row__score">{row.balance.toFixed(1)}</span>
+								<span class="board-row__score"
+									>{formatPoints(row.balance, settings.allow_decimal_points)}</span
+								>
 								<span class="board-row__chevron" aria-hidden="true">→</span>
 							</button>
 						</li>
@@ -302,7 +356,7 @@
 					<select bind:value={selectedActivityId} onchange={onActivityChange} required>
 						{#each activities as a (a.id)}
 							<option value={a.id}>
-								{a.title} ({Number(a.default_points).toFixed(1)} pts{#if a.allow_negative}, ±{/if})
+								{a.title} ({formatPoints(Number(a.default_points), settings.allow_decimal_points)} pts{#if settings.allow_negative_points && a.allow_negative}, ±{/if})
 							</option>
 						{:else}
 							<option value="" disabled>No activities yet</option>
@@ -312,8 +366,16 @@
 
 				<label class="field">
 					<span>Points</span>
-					<input bind:value={allocatePoints} type="number" step="0.1" required />
-					{#if selectedActivity && !selectedActivity.allow_negative}
+					<input
+						bind:value={allocatePoints}
+						type="number"
+						step={step}
+						min={settings.allow_negative_points ? undefined : 1}
+						required
+					/>
+					{#if inputHint}
+						<span class="hint">{inputHint}</span>
+					{:else if selectedActivity && !selectedActivity.allow_negative}
 						<span class="hint">Negative values are blocked for this activity.</span>
 					{/if}
 				</label>
@@ -400,7 +462,12 @@
 								<strong>{previewActivity?.title ?? aiPreview.activity_id}</strong>
 							</li>
 							<li>
-								Points: <strong>{aiPreview.points}</strong>
+								Points:
+								<strong
+									>{formatPoints(aiPreview.points, settings.allow_decimal_points, {
+										signed: true
+									})}</strong
+								>
 							</li>
 						</ul>
 						<button

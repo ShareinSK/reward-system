@@ -1,18 +1,28 @@
 <script lang="ts">
 	import { fetchActivities } from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import { ensureHouseholdId, fetchHouseholdSettings } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import {
+		formatPoints,
+		normalizePoints,
+		pointsStep,
+		settingsFromHousehold
+	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { Activity } from '$lib/types';
+	import type { Activity, HouseholdSettings } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
 	let activities = $state<Activity[]>([]);
+	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 	let title = $state('');
 	let defaultPoints = $state(1);
 	let allowNegative = $state(false);
 	let error = $state('');
 	let loading = $state(true);
+
+	const step = $derived(pointsStep(settings.allow_decimal_points));
 
 	async function load() {
 		loading = true;
@@ -24,8 +34,12 @@
 				goto(resolve('/'), { replaceState: true });
 				return;
 			}
-			setActiveHouseholdId(await ensureHouseholdId());
-			activities = await fetchActivities();
+			const hid = await ensureHouseholdId();
+			setActiveHouseholdId(hid);
+			const [list, s] = await Promise.all([fetchActivities(), fetchHouseholdSettings(hid)]);
+			activities = list;
+			settings = settingsFromHousehold(s);
+			if (!settings.allow_negative_points) allowNegative = false;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -40,6 +54,14 @@
 	async function addActivity(e: Event) {
 		e.preventDefault();
 		error = '';
+		const points = normalizePoints(Number(defaultPoints), {
+			...settings,
+			allow_negative_points: true // defaults can be positive-only via min; allow normalize rounding
+		});
+		if (Number.isNaN(points) || points === 0) {
+			error = 'Default points must be a non-zero number.';
+			return;
+		}
 		const {
 			data: { user }
 		} = await supabase.auth.getUser();
@@ -47,8 +69,8 @@
 		setActiveHouseholdId(household_id);
 		const { error: insertError } = await supabase.from('activities').insert({
 			title: title.trim(),
-			default_points: defaultPoints,
-			allow_negative: allowNegative,
+			default_points: Math.abs(points),
+			allow_negative: settings.allow_negative_points ? allowNegative : false,
 			created_by: user?.id ?? null,
 			household_id
 		});
@@ -76,6 +98,12 @@
 	<header>
 		<p class="eyebrow">Master lists</p>
 		<h1>Activities</h1>
+		<p class="lede">
+			Scoring rules follow <a href={resolve('/settings/')}>Settings</a>
+			{#if !settings.allow_decimal_points}
+				· whole numbers only
+			{/if}
+		</p>
 	</header>
 
 	<form class="form" onsubmit={addActivity}>
@@ -85,12 +113,14 @@
 		</label>
 		<label>
 			<span>Default points</span>
-			<input bind:value={defaultPoints} type="number" step="0.1" required />
+			<input bind:value={defaultPoints} type="number" step={step} min="1" required />
 		</label>
-		<label class="check">
-			<input bind:checked={allowNegative} type="checkbox" />
-			<span>Allow negative</span>
-		</label>
+		{#if settings.allow_negative_points}
+			<label class="check">
+				<input bind:checked={allowNegative} type="checkbox" />
+				<span>Allow negative</span>
+			</label>
+		{/if}
 		<button type="submit">Add</button>
 	</form>
 
@@ -107,8 +137,8 @@
 					<div>
 						<strong>{a.title}</strong>
 						<span class="muted"
-							>{Number(a.default_points).toFixed(1)} pts
-							{#if a.allow_negative}· negatives OK{/if}</span
+							>{formatPoints(Number(a.default_points), settings.allow_decimal_points)} pts
+							{#if settings.allow_negative_points && a.allow_negative}· negatives OK{/if}</span
 						>
 					</div>
 					<button type="button" onclick={() => removeActivity(a.id)}>Remove</button>
@@ -137,6 +167,14 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	.lede {
+		margin: 0.35rem 0 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+	.lede a {
+		color: var(--accent);
 	}
 	.form {
 		display: flex;
