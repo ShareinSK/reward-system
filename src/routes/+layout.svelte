@@ -19,7 +19,8 @@
 		{ href: '/participants', label: 'Participants' },
 		{ href: '/activities', label: 'Activities' },
 		{ href: '/rewards', label: 'Rewards' },
-		{ href: '/share', label: 'Share' }
+		{ href: '/share', label: 'Share' },
+		{ href: '/settings', label: 'Settings' }
 	] as const;
 
 	$effect(() => {

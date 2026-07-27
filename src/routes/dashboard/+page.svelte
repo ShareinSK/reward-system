@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import RewardVault from '$lib/components/RewardVault.svelte';
 	import {
-		claimGrandReward,
 		fetchActivities,
-		fetchGrandRewards,
 		fetchLedger,
 		fetchParticipants,
 		insertLedgerEntry,
 		parsePointsWithAi
 	} from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import {
+		ensureHouseholdId,
+		fetchHouseholdSettings
+	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
 		balanceForParticipant,
@@ -20,14 +20,22 @@
 		startOfLocalWeek,
 		sumPoints
 	} from '$lib/points';
+	import {
+		formatPoints,
+		normalizePoints,
+		pointsInputHint,
+		pointsStep,
+		settingsFromHousehold
+	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
 	import type {
 		Activity,
 		AiLogPreview,
-		GrandReward,
+		HouseholdSettings,
 		Participant,
 		PointsLedgerEntry
 	} from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
 	import { untrack } from 'svelte';
 
 	let loading = $state(true);
@@ -36,64 +44,52 @@
 	let allocateSuccess = $state('');
 
 	let activities = $state<Activity[]>([]);
-	let rewards = $state<GrandReward[]>([]);
 	let participants = $state<Participant[]>([]);
 	let ledger = $state<PointsLedgerEntry[]>([]);
+	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 
-	let activeParticipantId = $state<string | null>(null);
-
-	// Manual allocate form
 	let selectedActivityId = $state('');
 	let allocatePoints = $state(1);
 	let allocateNote = $state('');
 	let selectedIds = $state<Record<string, boolean>>({});
 
-	// AI (secondary)
 	let aiText = $state('');
 	let aiLoading = $state(false);
 	let aiPreview = $state<AiLogPreview | null>(null);
 	let aiError = $state('');
 
-	const activeParticipant = $derived(
-		participants.find((p) => p.id === activeParticipantId) ?? participants[0] ?? null
-	);
+	const step = $derived(pointsStep(settings.allow_decimal_points));
+	const inputHint = $derived(pointsInputHint(settings));
 
-	const participantLedger = $derived(
-		activeParticipant
-			? ledger.filter((e) => e.participant_id === activeParticipant.id)
-			: []
-	);
+	type LeaderRow = {
+		participant: Participant;
+		balance: number;
+		daily: number;
+		weekly: number;
+		rank: number;
+	};
 
-	const totalBalance = $derived(
-		activeParticipant ? balanceForParticipant(ledger, activeParticipant.id) : 0
-	);
-
-	const dailyTotal = $derived(sumPoints(filterSince(participantLedger, startOfLocalDay())));
-	const weeklyTotal = $derived(sumPoints(filterSince(participantLedger, startOfLocalWeek())));
-
-	const nextReward = $derived.by(() => {
-		const affordable = [...rewards].sort(
-			(a, b) => Number(a.points_required) - Number(b.points_required)
-		);
-		return (
-			affordable.find((r) => Number(r.points_required) > totalBalance) ??
-			affordable[affordable.length - 1] ??
-			null
-		);
+	const leaderboard = $derived.by(() => {
+		const rows: Omit<LeaderRow, 'rank'>[] = participants.map((participant) => {
+			const entries = ledger.filter((e) => e.participant_id === participant.id);
+			return {
+				participant,
+				balance: balanceForParticipant(ledger, participant.id),
+				daily: sumPoints(filterSince(entries, startOfLocalDay())),
+				weekly: sumPoints(filterSince(entries, startOfLocalWeek()))
+			};
+		});
+		rows.sort((a, b) => b.balance - a.balance);
+		return rows.map((row, i) => ({ ...row, rank: i + 1 }));
 	});
-
-	const targetPoints = $derived(nextReward ? Number(nextReward.points_required) : 100);
 
 	const selectedActivity = $derived(
 		activities.find((a) => a.id === selectedActivityId) ?? null
 	);
-
 	const checkedParticipants = $derived(participants.filter((p) => selectedIds[p.id]));
-
 	const allSelected = $derived(
 		participants.length > 0 && participants.every((p) => selectedIds[p.id])
 	);
-
 	const previewParticipant = $derived(
 		aiPreview ? participants.find((p) => p.id === aiPreview!.participant_id) : null
 	);
@@ -113,24 +109,24 @@
 				return;
 			}
 			try {
-				setActiveHouseholdId(await ensureHouseholdId());
-				const [a, r, p, l] = await Promise.all([
+				const hid = await ensureHouseholdId();
+				setActiveHouseholdId(hid);
+				const [a, p, l, s] = await Promise.all([
 					fetchActivities(),
-					fetchGrandRewards(),
 					fetchParticipants(),
-					fetchLedger()
+					fetchLedger(),
+					fetchHouseholdSettings(hid)
 				]);
 				if (cancelled) return;
 				activities = a;
-				rewards = r;
 				participants = p;
 				ledger = l;
-				if (!untrack(() => activeParticipantId) && p[0]) {
-					activeParticipantId = p[0].id;
-				}
+				settings = settingsFromHousehold(s);
 				if (!untrack(() => selectedActivityId) && a[0]) {
 					selectedActivityId = a[0].id;
-					allocatePoints = Number(a[0].default_points);
+					allocatePoints = settings.allow_decimal_points
+						? Number(a[0].default_points)
+						: Math.round(Number(a[0].default_points));
 				}
 				const nextSelected: Record<string, boolean> = {};
 				for (const person of p) {
@@ -151,13 +147,21 @@
 
 	function onActivityChange() {
 		const activity = activities.find((a) => a.id === selectedActivityId);
-		if (activity) allocatePoints = Number(activity.default_points);
+		if (activity) {
+			allocatePoints = settings.allow_decimal_points
+				? Number(activity.default_points)
+				: Math.round(Number(activity.default_points));
+		}
 	}
 
 	function toggleAll(checked: boolean) {
 		const next: Record<string, boolean> = {};
 		for (const p of participants) next[p.id] = checked;
 		selectedIds = next;
+	}
+
+	function openParticipant(id: string) {
+		goto(resolve(`/participants/${id}/`));
 	}
 
 	async function refreshLedger() {
@@ -178,9 +182,15 @@
 			return;
 		}
 
-		const points = Number(allocatePoints);
+		const points = normalizePoints(Number(allocatePoints), settings);
 		if (Number.isNaN(points) || points === 0) {
-			error = 'Points must be a non-zero number.';
+			error = settings.allow_negative_points
+				? 'Points must be a non-zero number.'
+				: 'Points must be a positive whole number (negatives are off in Settings).';
+			return;
+		}
+		if (points < 0 && !settings.allow_negative_points) {
+			error = 'Negative points are turned off in Settings.';
 			return;
 		}
 		if (points < 0 && !selectedActivity.allow_negative) {
@@ -190,10 +200,7 @@
 
 		saving = true;
 		try {
-			const note =
-				allocateNote.trim() ||
-				`Allocated for ${selectedActivity.title}`;
-
+			const note = allocateNote.trim() || `Allocated for ${selectedActivity.title}`;
 			await Promise.all(
 				checkedParticipants.map((p) =>
 					insertLedgerEntry({
@@ -204,8 +211,7 @@
 					})
 				)
 			);
-
-			allocateSuccess = `Added ${points > 0 ? '+' : ''}${points.toFixed(1)} pts to ${checkedParticipants.length} participant${checkedParticipants.length === 1 ? '' : 's'}.`;
+			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} pts to ${checkedParticipants.length} participant${checkedParticipants.length === 1 ? '' : 's'}.`;
 			allocateNote = '';
 			toggleAll(false);
 			await refreshLedger();
@@ -232,9 +238,17 @@
 					id,
 					title,
 					default_points: Number(default_points),
-					allow_negative
+					allow_negative: settings.allow_negative_points && allow_negative
 				}))
 			);
+			if (aiPreview) {
+				aiPreview = {
+					...aiPreview,
+					points: settings.allow_decimal_points
+						? Math.round(Number(aiPreview.points) * 10) / 10
+						: Math.round(Number(aiPreview.points))
+				};
+			}
 		} catch (err) {
 			aiError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -249,13 +263,20 @@
 		aiError = '';
 		try {
 			const activity = activities.find((a) => a.id === aiPreview!.activity_id);
-			if (aiPreview.points < 0 && !activity?.allow_negative) {
+			const points = normalizePoints(aiPreview.points, settings);
+			if (Number.isNaN(points) || points === 0) {
+				throw new Error('Points must be a non-zero number under current Settings.');
+			}
+			if (points < 0 && !settings.allow_negative_points) {
+				throw new Error('Negative points are turned off in Settings.');
+			}
+			if (points < 0 && !activity?.allow_negative) {
 				throw new Error('This activity does not allow negative points.');
 			}
 			await insertLedgerEntry({
 				participant_id: aiPreview.participant_id,
 				activity_id: aiPreview.activity_id,
-				points: aiPreview.points,
+				points,
 				note: aiText.trim()
 			});
 			aiText = '';
@@ -267,51 +288,21 @@
 			saving = false;
 		}
 	}
-
-	async function redeemReward(reward: GrandReward) {
-		if (!activeParticipant) return;
-		if (totalBalance < Number(reward.points_required)) {
-			error = 'Not enough points to claim this reward.';
-			return;
-		}
-		saving = true;
-		error = '';
-		try {
-			await claimGrandReward(activeParticipant.id, reward);
-			await refreshLedger();
-		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
-		} finally {
-			saving = false;
-		}
-	}
 </script>
 
 <section class="dash">
 	<header class="dash__header">
 		<div>
 			<p class="eyebrow">Dashboard</p>
-			<h1>Points &amp; Progress</h1>
+			<h1>Leaderboard</h1>
+			<p class="lede">Tap someone to see their vault, rewards, and full history.</p>
 		</div>
-
-		{#if participants.length}
-			<label class="participant-pick">
-				<span>Vault / metrics participant</span>
-				<select bind:value={activeParticipantId}>
-					{#each participants as p (p.id)}
-						<option value={p.id}>{p.name}</option>
-					{/each}
-				</select>
-			</label>
-		{/if}
 	</header>
 
 	{#if loading}
 		<p class="muted">Loading dashboard…</p>
 	{:else if !participants.length}
-		<p class="muted">
-			Add participants, activities, and rewards from the nav to get started.
-		</p>
+		<p class="muted">Add participants, activities, and rewards from the nav to get started.</p>
 	{:else}
 		{#if error}
 			<p class="alert" role="alert">{error}</p>
@@ -320,31 +311,38 @@
 			<p class="ok" role="status">{allocateSuccess}</p>
 		{/if}
 
-		<div class="metrics">
-			<div class="metric">
-				<span class="metric__label">Today</span>
-				<strong class="metric__value">{dailyTotal.toFixed(1)}</strong>
-			</div>
-			<div class="metric">
-				<span class="metric__label">This week</span>
-				<strong class="metric__value">{weeklyTotal.toFixed(1)}</strong>
-			</div>
-			<div class="metric metric--accent">
-				<span class="metric__label">Balance</span>
-				<strong class="metric__value">{totalBalance.toFixed(1)}</strong>
-			</div>
-		</div>
-
 		<div class="dash__grid">
-			<div class="panel panel--vault">
-				<RewardVault balance={totalBalance} {targetPoints} class="h-full min-h-[280px]" />
-				{#if nextReward}
-					<p class="vault-hint">
-						Next goal: <strong>{nextReward.title}</strong> · {Number(
-							nextReward.points_required
-						).toFixed(1)} pts
-					</p>
-				{/if}
+			<div class="panel panel--board">
+				<h2>Standings</h2>
+				<ol class="board">
+					{#each leaderboard as row (row.participant.id)}
+						<li>
+							<button
+								type="button"
+								class="board-row"
+								class:board-row--top={row.rank === 1}
+								onclick={() => openParticipant(row.participant.id)}
+							>
+								<span class="rank" aria-label={`Rank ${row.rank}`}>{row.rank}</span>
+								<span
+									class="swatch"
+									style={`background:${row.participant.avatar_color}`}
+								></span>
+								<span class="board-row__main">
+									<strong>{row.participant.name}</strong>
+									<span class="muted"
+										>Today {formatPoints(row.daily, settings.allow_decimal_points)} · Week
+										{formatPoints(row.weekly, settings.allow_decimal_points)}</span
+									>
+								</span>
+								<span class="board-row__score"
+									>{formatPoints(row.balance, settings.allow_decimal_points)}</span
+								>
+								<span class="board-row__chevron" aria-hidden="true">→</span>
+							</button>
+						</li>
+					{/each}
+				</ol>
 			</div>
 
 			<form class="panel" onsubmit={allocateToSelected}>
@@ -358,7 +356,7 @@
 					<select bind:value={selectedActivityId} onchange={onActivityChange} required>
 						{#each activities as a (a.id)}
 							<option value={a.id}>
-								{a.title} ({Number(a.default_points).toFixed(1)} pts{#if a.allow_negative}, ±{/if})
+								{a.title} ({formatPoints(Number(a.default_points), settings.allow_decimal_points)} pts{#if settings.allow_negative_points && a.allow_negative}, ±{/if})
 							</option>
 						{:else}
 							<option value="" disabled>No activities yet</option>
@@ -368,8 +366,16 @@
 
 				<label class="field">
 					<span>Points</span>
-					<input bind:value={allocatePoints} type="number" step="0.1" required />
-					{#if selectedActivity && !selectedActivity.allow_negative}
+					<input
+						bind:value={allocatePoints}
+						type="number"
+						step={step}
+						min={settings.allow_negative_points ? undefined : 1}
+						required
+					/>
+					{#if inputHint}
+						<span class="hint">{inputHint}</span>
+					{:else if selectedActivity && !selectedActivity.allow_negative}
 						<span class="hint">Negative values are blocked for this activity.</span>
 					{/if}
 				</label>
@@ -377,11 +383,7 @@
 				<div class="field">
 					<div class="check-head">
 						<span>Participants</span>
-						<button
-							type="button"
-							class="link"
-							onclick={() => toggleAll(!allSelected)}
-						>
+						<button type="button" class="link" onclick={() => toggleAll(!allSelected)}>
 							{allSelected ? 'Clear all' : 'Select all'}
 						</button>
 					</div>
@@ -415,57 +417,13 @@
 			</form>
 		</div>
 
-		<div class="dash__grid dash__grid--lower">
-			<div class="panel">
-				<h2>Grand rewards</h2>
-				<ul class="list">
-					{#each rewards as reward (reward.id)}
-						<li>
-							<div>
-								<strong>{reward.title}</strong>
-								<span class="muted">{Number(reward.points_required).toFixed(1)} pts</span>
-							</div>
-							<button
-								type="button"
-								class="btn btn--sm"
-								disabled={saving || totalBalance < Number(reward.points_required)}
-								onclick={() => redeemReward(reward)}
-							>
-								Claim
-							</button>
-						</li>
-					{:else}
-						<li class="muted">No rewards yet.</li>
-					{/each}
-				</ul>
-			</div>
-
-			<div class="panel">
-				<h2>Recent ledger</h2>
-				<ul class="list list--ledger">
-					{#each participantLedger.slice(0, 8) as entry (entry.id)}
-						<li>
-							<span class:points-neg={entry.points < 0} class:points-pos={entry.points > 0}>
-								{Number(entry.points) > 0 ? '+' : ''}{Number(entry.points).toFixed(1)}
-							</span>
-							<span class="ledger-note">{entry.note || '—'}</span>
-							<time datetime={entry.created_at}>
-								{new Date(entry.created_at).toLocaleString()}
-							</time>
-						</li>
-					{:else}
-						<li class="muted">No ledger entries yet.</li>
-					{/each}
-				</ul>
-			</div>
-		</div>
-
 		<details class="ai-promo">
 			<summary>
 				<span class="ai-promo__eyebrow">Optional</span>
 				<span class="ai-promo__title">Please try our AI capability</span>
 				<span class="ai-promo__lede">
-					Describe a points event in plain English — we’ll propose a ledger entry for you to confirm.
+					Describe a points event in plain English — we’ll propose a ledger entry for you to
+					confirm.
 				</span>
 			</summary>
 
@@ -504,7 +462,12 @@
 								<strong>{previewActivity?.title ?? aiPreview.activity_id}</strong>
 							</li>
 							<li>
-								Points: <strong>{aiPreview.points}</strong>
+								Points:
+								<strong
+									>{formatPoints(aiPreview.points, settings.allow_decimal_points, {
+										signed: true
+									})}</strong
+								>
 							</li>
 						</ul>
 						<button
@@ -528,14 +491,6 @@
 		gap: 1.5rem;
 	}
 
-	.dash__header {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: end;
-		justify-content: space-between;
-		gap: 1rem;
-	}
-
 	.dash__header h1 {
 		margin: 0.15rem 0 0;
 		font-family: var(--font-display);
@@ -553,7 +508,14 @@
 		font-family: var(--font-display);
 	}
 
-	.participant-pick,
+	.lede,
+	.panel__lede,
+	.muted {
+		margin: 0.35rem 0 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+
 	.field {
 		display: grid;
 		gap: 0.3rem;
@@ -561,7 +523,6 @@
 		color: var(--text-muted);
 	}
 
-	.participant-pick select,
 	.field select,
 	.field input,
 	textarea {
@@ -630,47 +591,10 @@
 		flex-shrink: 0;
 	}
 
-	.metrics {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 0.75rem;
-	}
-
-	.metric {
-		padding: 1rem 1.1rem;
-		border-radius: 1rem;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		box-shadow: var(--shadow);
-	}
-
-	.metric--accent {
-		background: linear-gradient(145deg, rgba(20, 184, 166, 0.18), rgba(245, 158, 11, 0.1));
-		border-color: rgba(180, 83, 9, 0.22);
-	}
-
-	.metric__label {
-		display: block;
-		font-size: 0.75rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--text-soft);
-	}
-
-	.metric__value {
-		font-family: var(--font-display);
-		font-size: 1.75rem;
-		color: var(--text);
-	}
-
 	.dash__grid {
 		display: grid;
-		grid-template-columns: 1.1fr 1fr;
+		grid-template-columns: 1.15fr 1fr;
 		gap: 1rem;
-	}
-
-	.dash__grid--lower {
-		grid-template-columns: 1fr 1.2fr;
 	}
 
 	.panel {
@@ -684,10 +608,6 @@
 		align-content: start;
 	}
 
-	.panel--vault {
-		padding: 0.65rem;
-	}
-
 	.panel h2 {
 		margin: 0;
 		font-family: var(--font-display);
@@ -695,16 +615,70 @@
 		color: var(--text);
 	}
 
-	.panel__lede,
-	.muted,
-	.vault-hint {
+	.board {
+		list-style: none;
 		margin: 0;
-		color: var(--text-muted);
-		font-size: 0.9rem;
+		padding: 0;
+		display: grid;
+		gap: 0.45rem;
 	}
 
-	.vault-hint {
-		padding: 0.35rem 0.5rem 0.55rem;
+	.board-row {
+		width: 100%;
+		display: grid;
+		grid-template-columns: 2rem 0.7rem 1fr auto auto;
+		align-items: center;
+		gap: 0.65rem;
+		padding: 0.7rem 0.8rem;
+		border-radius: 0.85rem;
+		border: 1px solid var(--border);
+		background: var(--surface-strong);
+		cursor: pointer;
+		text-align: left;
+		font: inherit;
+		color: var(--text);
+		transition:
+			border-color 0.15s ease,
+			transform 0.15s ease;
+	}
+
+	.board-row:hover {
+		border-color: var(--border-strong);
+		transform: translateY(-1px);
+	}
+
+	.board-row--top {
+		background: linear-gradient(145deg, rgba(20, 184, 166, 0.16), rgba(245, 158, 11, 0.1));
+		border-color: rgba(180, 83, 9, 0.22);
+	}
+
+	.rank {
+		font-family: var(--font-display);
+		font-weight: 800;
+		color: var(--accent);
+		font-size: 1rem;
+	}
+
+	.board-row__main {
+		display: grid;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+
+	.board-row__main strong {
+		font-size: 1rem;
+	}
+
+	.board-row__score {
+		font-family: var(--font-display);
+		font-weight: 800;
+		font-size: 1.15rem;
+		color: var(--text);
+	}
+
+	.board-row__chevron {
+		color: var(--text-soft);
+		font-size: 1rem;
 	}
 
 	.row {
@@ -740,11 +714,6 @@
 		color: #451a03;
 	}
 
-	.btn--sm {
-		padding: 0.4rem 0.7rem;
-		font-size: 0.8rem;
-	}
-
 	.preview {
 		border-radius: 0.9rem;
 		padding: 0.85rem;
@@ -760,48 +729,12 @@
 		color: var(--ok-text);
 	}
 
-	.preview ul,
-	.list {
+	.preview ul {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.55rem;
-	}
-
-	.list li {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.55rem 0;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.list--ledger li {
-		display: grid;
-		grid-template-columns: 4rem 1fr auto;
-		align-items: baseline;
-	}
-
-	.ledger-note {
-		color: var(--text);
-		font-size: 0.9rem;
-	}
-
-	time {
-		font-size: 0.75rem;
-		color: var(--text-soft);
-	}
-
-	.points-pos {
-		color: #047857;
-		font-weight: 700;
-	}
-
-	.points-neg {
-		color: var(--amber);
-		font-weight: 700;
+		gap: 0.35rem;
 	}
 
 	.alert {
@@ -866,18 +799,16 @@
 	}
 
 	@media (max-width: 900px) {
-		.metrics,
-		.dash__grid,
-		.dash__grid--lower {
+		.dash__grid {
 			grid-template-columns: 1fr;
 		}
 
-		.list--ledger li {
-			grid-template-columns: 3.5rem 1fr;
+		.board-row {
+			grid-template-columns: 1.75rem 0.7rem 1fr auto;
 		}
 
-		.list--ledger time {
-			grid-column: 2;
+		.board-row__chevron {
+			display: none;
 		}
 	}
 </style>

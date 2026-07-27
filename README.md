@@ -1,60 +1,32 @@
-# Reward System App
+# Reward System
 
-Gamified family/team points tracker. Static SvelteKit SPA on GitHub Pages + free-tier Supabase (Auth, Postgres, Edge Functions) + Threlte 3D vault.
+A lightweight, gamified points tracker for families and small teams.
 
-## Stack
+Track everyday activities, award points, and unlock shared milestones — together.
 
-- SvelteKit 2 + Svelte 5 runes + `@sveltejs/adapter-static` (SPA / `404.html` fallback)
-- Tailwind CSS 4
-- Supabase (Email Auth, Postgres, Edge Function → Gemini 2.5 Flash)
-- Threlte (`@threlte/core` + `@threlte/extras`)
+**Live app:** [shareinsk.github.io/reward-system](https://shareinsk.github.io/reward-system/)
 
-## Quick start
+---
 
-1. Copy `.env.example` → `.env` and set `PUBLIC_SUPABASE_URL` + `PUBLIC_SUPABASE_ANON_KEY`.
-2. In Supabase SQL Editor, run [`supabase/schema.sql`](./supabase/schema.sql), then [`supabase/migration_households.sql`](./supabase/migration_households.sql).
-3. Deploy the AI function:
+## What it does
 
-```bash
-supabase functions deploy parse-points-log
-supabase secrets set GEMINI_API_KEY=your-gemini-key
-```
+Reward System helps you turn chores, habits, and wins into a shared progress game.
 
-4. Install and run locally:
+- **Participants** — Add everyone who’s earning points (kids, teammates, roommates).
+- **Activities** — Define what counts, with default point values (including partial points like 2.5).
+- **Point allocation** — Check who completed something and award points in a few taps.
+- **Grand rewards** — Set bigger goals; claim them when someone has enough balance.
+- **Live progress** — See today and this week’s totals, plus a 3D reward vault that grows as you get closer to the next milestone.
+- **Optional AI log** — Describe what happened in plain English (e.g. “Gave Sarah 2.5 points for washing the car”) and confirm before it’s saved.
 
-```bash
-npm install
-npm run dev
-```
+---
 
-## Sharing with a co-manager
+## Built for sharing
 
-1. Open **Share** in the nav.
-2. Copy the invite link or code.
-3. The other person signs up / signs in, opens the link (`/join?code=…`), and joins.
-4. Both people can manage the same participants, activities, rewards, and ledger.
-## GitHub Pages
+One household, multiple managers. Invite a partner or co-parent with a link or code so you can both update the same ledger, activities, and rewards — no duplicate lists.
 
-- Workflow: [`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml)
-- Add repo secrets: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`
-- Enable Pages → Source: **GitHub Actions**
-- `BASE_PATH` is set to `/<repo-name>` in CI (omit for a user/org root site)
+---
 
-## App routes
+## Who it’s for
 
-| Route | Purpose |
-| --- | --- |
-| `/login` | Email sign-up / sign-in |
-| `/dashboard` | Daily/weekly totals, allocate points, AI log, 3D vault, claim rewards |
-| `/participants` | Participant CRUD |
-| `/activities` | Activities (`default_points`, `allow_negative`) |
-| `/rewards` | Grand rewards CRUD |
-| `/share` | Invite co-managers (code + link) |
-| `/join` | Accept an invite code |
-
-## Key files requested in the architecture
-
-1. [`svelte.config.js`](./svelte.config.js) + [`src/routes/+layout.ts`](./src/routes/+layout.ts) — static SPA for GitHub Pages  
-2. [`supabase/schema.sql`](./supabase/schema.sql) — Postgres schema, negative-points trigger, RLS  
-3. [`src/routes/dashboard/+page.svelte`](./src/routes/dashboard/+page.svelte) — runes + AI staging preview  
-4. [`src/lib/components/RewardVault.svelte`](./src/lib/components/RewardVault.svelte) — Threlte reward progress vault  
+Families tracking chores and screen-time tradeoffs, roommates running a fairness system, or small teams who want a simple, visual way to celebrate progress — without a heavy project tool.

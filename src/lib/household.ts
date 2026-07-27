@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import type { Household, HouseholdMember } from './types';
+import type { Household, HouseholdMember, HouseholdSettings } from './types';
+import { settingsFromHousehold } from './settings';
 
 /** Ensure the signed-in user has an active household; returns its id. */
 export async function ensureHouseholdId(): Promise<string> {
@@ -70,4 +71,26 @@ export async function renameHousehold(householdId: string, name: string): Promis
 		.update({ name: name.trim() })
 		.eq('id', householdId);
 	if (error) throw error;
+}
+
+export async function fetchHouseholdSettings(householdId: string): Promise<HouseholdSettings> {
+	const household = await fetchHousehold(householdId);
+	return settingsFromHousehold(household);
+}
+
+export async function updateHouseholdSettings(
+	householdId: string,
+	settings: HouseholdSettings
+): Promise<HouseholdSettings> {
+	const { data, error } = await supabase
+		.from('households')
+		.update({
+			allow_negative_points: settings.allow_negative_points,
+			allow_decimal_points: settings.allow_decimal_points
+		})
+		.eq('id', householdId)
+		.select('*')
+		.single();
+	if (error) throw error;
+	return settingsFromHousehold(data as Household);
 }

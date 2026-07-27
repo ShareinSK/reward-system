@@ -1,18 +1,28 @@
 <script lang="ts">
 	import { fetchGrandRewards } from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import { ensureHouseholdId, fetchHouseholdSettings } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import {
+		formatPoints,
+		normalizePoints,
+		pointsStep,
+		settingsFromHousehold
+	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { GrandReward } from '$lib/types';
+	import type { GrandReward, HouseholdSettings } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
 	let rewards = $state<GrandReward[]>([]);
+	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 	let title = $state('');
 	let pointsRequired = $state(50);
 	let description = $state('');
 	let error = $state('');
 	let loading = $state(true);
+
+	const step = $derived(pointsStep(settings.allow_decimal_points));
 
 	async function load() {
 		loading = true;
@@ -24,8 +34,11 @@
 				goto(resolve('/'), { replaceState: true });
 				return;
 			}
-			setActiveHouseholdId(await ensureHouseholdId());
-			rewards = await fetchGrandRewards();
+			const hid = await ensureHouseholdId();
+			setActiveHouseholdId(hid);
+			const [list, s] = await Promise.all([fetchGrandRewards(), fetchHouseholdSettings(hid)]);
+			rewards = list;
+			settings = settingsFromHousehold(s);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -40,6 +53,14 @@
 	async function addReward(e: Event) {
 		e.preventDefault();
 		error = '';
+		const required = normalizePoints(Number(pointsRequired), {
+			allow_decimal_points: settings.allow_decimal_points,
+			allow_negative_points: true
+		});
+		if (Number.isNaN(required) || required <= 0) {
+			error = 'Points required must be greater than zero.';
+			return;
+		}
 		const {
 			data: { user }
 		} = await supabase.auth.getUser();
@@ -47,7 +68,7 @@
 		setActiveHouseholdId(household_id);
 		const { error: insertError } = await supabase.from('grand_rewards').insert({
 			title: title.trim(),
-			points_required: pointsRequired,
+			points_required: Math.abs(required),
 			description: description.trim(),
 			created_by: user?.id ?? null,
 			household_id
@@ -76,6 +97,12 @@
 	<header>
 		<p class="eyebrow">Master lists</p>
 		<h1>Grand Rewards</h1>
+		<p class="lede">
+			Point totals follow <a href={resolve('/settings/')}>Settings</a>
+			{#if !settings.allow_decimal_points}
+				· whole numbers only
+			{/if}
+		</p>
 	</header>
 
 	<form class="form" onsubmit={addReward}>
@@ -85,7 +112,7 @@
 		</label>
 		<label>
 			<span>Points required</span>
-			<input bind:value={pointsRequired} type="number" step="0.1" min="0.1" required />
+			<input bind:value={pointsRequired} type="number" step={step} min="1" required />
 		</label>
 		<label class="grow">
 			<span>Description</span>
@@ -106,7 +133,9 @@
 				<li>
 					<div>
 						<strong>{r.title}</strong>
-						<span class="muted">{Number(r.points_required).toFixed(1)} pts</span>
+						<span class="muted"
+							>{formatPoints(Number(r.points_required), settings.allow_decimal_points)} pts</span
+						>
 						{#if r.description}
 							<p>{r.description}</p>
 						{/if}
@@ -137,6 +166,14 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	.lede {
+		margin: 0.35rem 0 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+	.lede a {
+		color: var(--accent);
 	}
 	.form {
 		display: flex;
