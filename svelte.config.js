@@ -21,7 +21,9 @@ const config = {
 		},
 		prerender: {
 			// Follow every reachable link during build; SPA routes still fall back to 404.html
-			entries: ['*']
+			entries: ['*'],
+			// Dynamic routes like /participants/[id] are not crawlable at build time
+			handleUnseenRoutes: 'ignore'
 		}
 	}
 };
