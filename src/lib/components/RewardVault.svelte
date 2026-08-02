@@ -33,9 +33,9 @@
 		overflow: hidden;
 		border-radius: 1.25rem;
 		background:
-			radial-gradient(ellipse at 30% 20%, rgba(45, 212, 191, 0.28), transparent 55%),
-			radial-gradient(ellipse at 80% 80%, rgba(251, 191, 36, 0.16), transparent 50%),
-			linear-gradient(165deg, #b7d9d1 0%, #9ec9bf 45%, #88b8ad 100%);
+			radial-gradient(ellipse at 30% 20%, rgba(99, 102, 241, 0.28), transparent 55%),
+			radial-gradient(ellipse at 80% 80%, rgba(251, 191, 36, 0.2), transparent 50%),
+			linear-gradient(165deg, #c7d2fe 0%, #a5b4fc 45%, #818cf8 100%);
 		min-height: 280px;
 		height: 100%;
 	}
@@ -55,13 +55,13 @@
 		font-size: 0.7rem;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: rgba(15, 53, 47, 0.65);
+		color: rgba(30, 27, 75, 0.7);
 	}
 
 	.vault-caption__value {
 		font-family: var(--font-body);
 		font-size: 0.95rem;
 		font-weight: 600;
-		color: #12352f;
+		color: var(--text);
 	}
 </style>

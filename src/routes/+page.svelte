@@ -29,6 +29,12 @@
 		min-height: 70dvh;
 		display: grid;
 		place-items: center;
-		padding: 2rem 0;
+		padding: 1rem 0 2rem;
+	}
+
+	@media (min-width: 640px) {
+		.login {
+			padding: 2rem 0;
+		}
 	}
 </style>

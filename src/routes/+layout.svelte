@@ -15,12 +15,12 @@
 	let configError = $state<string | null>(null);
 
 	const nav = [
-		{ href: '/dashboard', label: 'Dashboard' },
-		{ href: '/participants', label: 'Participants' },
-		{ href: '/activities', label: 'Activities' },
-		{ href: '/rewards', label: 'Rewards' },
-		{ href: '/share', label: 'Share' },
-		{ href: '/settings', label: 'Settings' }
+		{ href: '/dashboard', label: 'Dashboard', icon: 'home' },
+		{ href: '/participants', label: 'Participants', icon: 'people' },
+		{ href: '/activities', label: 'Activities', icon: 'tasks' },
+		{ href: '/rewards', label: 'Rewards', icon: 'gift' },
+		{ href: '/share', label: 'Share', icon: 'share' },
+		{ href: '/settings', label: 'Settings', icon: 'settings' }
 	] as const;
 
 	$effect(() => {
@@ -50,13 +50,18 @@
 		};
 	});
 
+	const path = $derived((page.url.pathname.replace(base, '') || '/').replace(/\/$/, '') || '/');
+	const showChrome = $derived(ready && session && path !== '/' && !path.startsWith('/login'));
+
 	async function signOut() {
 		setActiveHouseholdId(null);
 		await supabase.auth.signOut();
 		goto(resolve('/'), { replaceState: true });
 	}
 
-	const path = $derived((page.url.pathname.replace(base, '') || '/').replace(/\/$/, '') || '/');
+	function isActive(href: string) {
+		return path === href || path.startsWith(href + '/');
+	}
 </script>
 
 <svelte:head>
@@ -64,31 +69,88 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
-		href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap"
+		href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700&family=Outfit:wght@400;500;600&display=swap"
 		rel="stylesheet"
 	/>
 	<title>Reward System</title>
 </svelte:head>
 
-<div class="app-shell">
-	{#if ready && session && path !== '/' && !path.startsWith('/login')}
+<div class="app-shell" class:app-shell--nav={showChrome}>
+	{#if showChrome}
 		<header class="topbar">
 			<a class="brand" href={resolve('/dashboard/')}>
 				<span class="brand__mark" aria-hidden="true"></span>
 				<span class="brand__name">Reward System</span>
 			</a>
-			<nav>
+
+			<nav class="top-nav" aria-label="Primary">
 				{#each nav as item}
 					<a
 						href={resolve(`${item.href}/`)}
-						class:active={path === item.href || path.startsWith(item.href + '/')}
+						class:active={isActive(item.href)}
 					>
 						{item.label}
 					</a>
 				{/each}
 			</nav>
+
 			<button type="button" class="signout" onclick={signOut}>Sign out</button>
 		</header>
+
+		<nav class="bottom-nav" aria-label="Mobile">
+			{#each nav as item}
+				<a
+					href={resolve(`${item.href}/`)}
+					class:active={isActive(item.href)}
+					aria-label={item.label}
+					title={item.label}
+				>
+					{#if item.icon === 'home'}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M12 3.2 3.5 10.2c-.3.3-.2.8.2.9h1.8v7.4c0 .6.5 1.1 1.1 1.1h3.4c.6 0 1.1-.5 1.1-1.1v-3.5h2.8v3.5c0 .6.5 1.1 1.1 1.1h3.4c.6 0 1.1-.5 1.1-1.1v-7.4h1.8c.4-.1.5-.6.2-.9L12 3.2Z"
+							/>
+						</svg>
+					{:else if item.icon === 'people'}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M9 11a3.25 3.25 0 1 0 0-6.5A3.25 3.25 0 0 0 9 11Zm6 0a3.25 3.25 0 1 0 0-6.5A3.25 3.25 0 0 0 15 11ZM4.5 19.5c0-2.6 2.2-4.5 4.5-4.5h.4c.7.3 1.4.5 2.1.5s1.4-.2 2.1-.5h.4c2.3 0 4.5 1.9 4.5 4.5 0 .6-.4 1-1 1H5.5c-.6 0-1-.4-1-1Z"
+							/>
+						</svg>
+					{:else if item.icon === 'tasks'}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M9.4 16.6 5.8 13l1.4-1.4 2.2 2.2 6.4-6.4L17.2 9l-7.8 7.6ZM6.5 4h11c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2h-11c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z"
+							/>
+						</svg>
+					{:else if item.icon === 'gift'}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M12 7.2c.9-1.6 2.5-2.7 4.3-2.7 1.5 0 2.7 1.2 2.7 2.7 0 2.1-2.3 3.6-5.5 4.1V7.2Zm-4.3-2.7c1.8 0 3.4 1.1 4.3 2.7v4.1C8.8 10.8 6.5 9.3 6.5 7.2c0-1.5 1.2-2.7 2.7-2.7ZM4.5 13.5h6.8v7H6c-.8 0-1.5-.7-1.5-1.5v-5.5Zm8.2 0h6.8v5.5c0 .8-.7 1.5-1.5 1.5h-5.3v-7Z"
+							/>
+						</svg>
+					{:else if item.icon === 'share'}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M18 16.1a2.9 2.9 0 0 0-2 .8l-6.4-3.7a3 3 0 0 0 0-1.4l6.4-3.7a2.9 2.9 0 1 0-.9-1.6L8.7 10.2a2.9 2.9 0 1 0 0 3.6l6.4 3.7a2.9 2.9 0 1 0 2.9-1.4Z"
+							/>
+						</svg>
+					{:else}
+						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+							<path
+								fill="currentColor"
+								d="M10.3 3.5h3.4l.4 2.2c.6.2 1.1.5 1.6.9l2.1-.8 1.7 2.9-1.7 1.4c.1.5.1 1 0 1.5l1.7 1.4-1.7 2.9-2.1-.8c-.5.4-1 .7-1.6.9l-.4 2.2h-3.4l-.4-2.2a5.7 5.7 0 0 1-1.6-.9l-2.1.8-1.7-2.9 1.7-1.4a5.8 5.8 0 0 1 0-1.5L4.5 8.7l1.7-2.9 2.1.8c.5-.4 1-.7 1.6-.9l.4-2.2ZM12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z"
+							/>
+						</svg>
+					{/if}
+				</a>
+			{/each}
+		</nav>
 	{/if}
 
 	<main class="main">
@@ -125,9 +187,9 @@
 		font-family: var(--font-body);
 		color: var(--text);
 		background:
-			radial-gradient(ellipse at 12% -8%, rgba(45, 212, 191, 0.22), transparent 42%),
-			radial-gradient(ellipse at 92% 4%, rgba(245, 158, 11, 0.12), transparent 38%),
-			linear-gradient(180deg, #f3f8f6 0%, #e7f0ed 48%, #dce8e3 100%);
+			radial-gradient(ellipse at 12% -8%, rgba(99, 102, 241, 0.18), transparent 42%),
+			radial-gradient(ellipse at 92% 4%, rgba(245, 158, 11, 0.14), transparent 38%),
+			linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 48%, #dde4ff 100%);
 	}
 
 	.app-shell {
@@ -136,18 +198,38 @@
 		grid-template-rows: auto 1fr;
 	}
 
+	.app-shell--nav {
+		padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+	}
+
 	.topbar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 1rem;
-		padding: 0.9rem clamp(1rem, 3vw, 2rem);
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
 		border-bottom: 1px solid var(--border);
-		background: rgba(247, 251, 249, 0.86);
+		background: rgba(244, 246, 255, 0.9);
 		backdrop-filter: blur(10px);
 		position: sticky;
 		top: 0;
 		z-index: 20;
+	}
+
+	@media (min-width: 640px) {
+		.topbar {
+			padding: 0.9rem 1.5rem;
+		}
+	}
+
+	@media (min-width: 768px) {
+		.topbar {
+			padding: 0.9rem clamp(1rem, 3vw, 2rem);
+		}
+
+		.app-shell--nav {
+			padding-bottom: 0;
+		}
 	}
 
 	.brand {
@@ -157,38 +239,51 @@
 		text-decoration: none;
 		color: var(--text);
 		margin-right: auto;
+		min-height: 44px;
 	}
 
 	.brand__mark {
-		width: 0.85rem;
-		height: 0.85rem;
-		border-radius: 0.2rem;
-		background: linear-gradient(135deg, #14b8a6, #f59e0b);
-		box-shadow: 0 0 14px rgba(13, 148, 136, 0.35);
+		width: 0.95rem;
+		height: 0.95rem;
+		border-radius: 0.35rem;
+		background: linear-gradient(135deg, var(--accent), var(--amber));
+		box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
 	}
 
 	.brand__name {
 		font-family: var(--font-display);
-		font-weight: 800;
+		font-weight: 700;
 		letter-spacing: -0.02em;
 	}
 
-	nav {
-		display: flex;
+	.top-nav {
+		display: none;
 		flex-wrap: wrap;
 		gap: 0.35rem;
 	}
 
-	nav a {
+	.top-nav a {
 		text-decoration: none;
 		color: var(--text-muted);
-		padding: 0.4rem 0.7rem;
+		padding: 0.55rem 0.85rem;
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
 		border-radius: 999px;
 		font-size: 0.9rem;
+		transition: transform 0.15s ease;
 	}
 
-	nav a.active,
-	nav a:hover {
+	.top-nav a:hover {
+		transform: scale(1.02);
+	}
+
+	.top-nav a:active {
+		transform: scale(0.95);
+	}
+
+	.top-nav a.active,
+	.top-nav a:hover {
 		color: var(--accent-ink);
 		background: var(--accent);
 	}
@@ -198,16 +293,92 @@
 		background: var(--surface-strong);
 		color: var(--accent);
 		border-radius: 999px;
-		padding: 0.4rem 0.8rem;
+		padding: 0.55rem 0.95rem;
+		min-height: 44px;
+		min-width: 44px;
 		cursor: pointer;
 		font: inherit;
 		font-size: 0.85rem;
+		transition: transform 0.15s ease;
+	}
+
+	.signout:hover {
+		transform: scale(1.02);
+	}
+
+	.signout:active {
+		transform: scale(0.95);
+	}
+
+	.bottom-nav {
+		display: grid;
+		grid-template-columns: repeat(6, minmax(0, 1fr));
+		gap: 0.15rem;
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 30;
+		padding: 0.4rem 0.35rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
+		background: rgba(255, 255, 255, 0.96);
+		border-top: 1px solid var(--border);
+		backdrop-filter: blur(12px);
+		box-shadow: 0 -8px 24px rgba(99, 102, 241, 0.08);
+	}
+
+	.bottom-nav a {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		min-width: 44px;
+		padding: 0.4rem;
+		border-radius: 0.85rem;
+		text-decoration: none;
+		color: var(--text-soft);
+		transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+	}
+
+	.bottom-nav a:active {
+		transform: scale(0.95);
+	}
+
+	.bottom-nav a.active {
+		color: var(--accent-bright);
+		background: rgba(99, 102, 241, 0.12);
+	}
+
+	.nav-icon {
+		width: 1.45rem;
+		height: 1.45rem;
+		display: block;
+		flex-shrink: 0;
 	}
 
 	.main {
 		width: min(1100px, 100%);
 		margin: 0 auto;
-		padding: 1.5rem clamp(1rem, 3vw, 2rem) 3rem;
+		padding: 1rem 1rem 2rem;
+	}
+
+	@media (min-width: 640px) {
+		.main {
+			padding: 1.25rem 1.5rem 2.5rem;
+		}
+	}
+
+	@media (min-width: 768px) {
+		.top-nav {
+			display: flex;
+		}
+
+		.bottom-nav {
+			display: none;
+		}
+
+		.main {
+			padding: 1.5rem clamp(1rem, 3vw, 2rem) 3rem;
+		}
 	}
 
 	.config-error {
