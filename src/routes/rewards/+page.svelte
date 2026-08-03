@@ -177,9 +177,16 @@
 	}
 	.form {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
 		gap: 0.75rem;
-		align-items: end;
+		align-items: stretch;
+	}
+	@media (min-width: 640px) {
+		.form {
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: end;
+		}
 	}
 	label {
 		display: grid;
@@ -195,19 +202,30 @@
 		border: 1px solid var(--border);
 		background: var(--surface-strong);
 		color: var(--text);
-		padding: 0.65rem 0.8rem;
+		padding: 0.7rem 0.85rem;
+		min-height: 44px;
 		font: inherit;
 		width: 100%;
+		box-sizing: border-box;
 	}
 	button {
 		border: none;
 		border-radius: 0.75rem;
-		padding: 0.65rem 0.95rem;
+		padding: 0.7rem 0.95rem;
+		min-height: 44px;
+		min-width: 44px;
 		font-family: var(--font-display);
 		font-weight: 700;
 		cursor: pointer;
 		background: var(--accent-bright);
-		color: #042f2e;
+		color: var(--accent-ink);
+		transition: transform 0.15s ease;
+	}
+	button:hover {
+		transform: scale(1.02);
+	}
+	button:active {
+		transform: scale(0.95);
 	}
 	ul {
 		list-style: none;
@@ -218,18 +236,35 @@
 	}
 	li {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: start;
 		gap: 0.75rem;
-		padding: 0.75rem 0.9rem;
+		padding: 0.85rem 0.9rem;
+		min-height: 44px;
 		border-radius: 0.9rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		box-shadow: var(--shadow);
+		transition: transform 0.15s ease;
+	}
+	li:hover {
+		transform: scale(1.02);
+	}
+	li:active {
+		transform: scale(0.98);
 	}
 	li div {
 		display: grid;
 		gap: 0.15rem;
+	}
+	li strong {
+		font-family: var(--font-display);
+	}
+	li .muted {
+		color: var(--amber);
+		font-family: var(--font-display);
+		font-weight: 600;
 	}
 	li p {
 		margin: 0.15rem 0 0;
@@ -239,7 +274,7 @@
 	li button {
 		background: var(--surface-strong);
 		color: var(--amber);
-		border: 1px solid rgba(180, 83, 9, 0.3);
+		border: 1px solid rgba(245, 158, 11, 0.35);
 	}
 	.muted {
 		color: var(--text-muted);

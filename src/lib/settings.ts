@@ -37,7 +37,7 @@ export function pointsInputHint(settings: HouseholdSettings): string | null {
 		return 'Whole numbers only. Negative points are turned off in Settings.';
 	}
 	if (!settings.allow_decimal_points) {
-		return 'Whole numbers only — easier for kids to follow. Change this in Settings.';
+		return 'Whole numbers only. Change this in Settings.';
 	}
 	if (!settings.allow_negative_points) {
 		return 'Negative points are turned off in Settings.';

@@ -38,7 +38,7 @@
 		try {
 			const hid = await joinHouseholdByCode(code);
 			setActiveHouseholdId(hid);
-			success = 'Joined! You can now manage this household’s rewards.';
+			success = 'Joined! You can now manage this group’s rewards.';
 			setTimeout(() => goto(resolve('/dashboard/'), { replaceState: true }), 700);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
@@ -51,7 +51,7 @@
 <section class="page">
 	<header>
 		<p class="eyebrow">Sharing</p>
-		<h1>Join a household</h1>
+		<h1>Join a group</h1>
 		<p class="lede">
 			Enter the invite code from another manager to share the same reward system.
 		</p>
@@ -71,7 +71,7 @@
 		{/if}
 
 		<button type="submit" disabled={loading}>
-			{loading ? 'Joining…' : 'Join household'}
+			{loading ? 'Joining…' : 'Join group'}
 		</button>
 	</form>
 </section>
@@ -102,11 +102,16 @@
 	.panel {
 		display: grid;
 		gap: 0.75rem;
-		padding: 1.15rem 1.2rem;
+		padding: 1rem;
 		border-radius: 1.15rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		box-shadow: var(--shadow);
+	}
+	@media (min-width: 640px) {
+		.panel {
+			padding: 1.15rem 1.2rem;
+		}
 	}
 	label {
 		display: grid;
@@ -119,20 +124,31 @@
 		border: 1px solid var(--border);
 		background: var(--surface-strong);
 		color: var(--text);
-		padding: 0.7rem 0.85rem;
+		padding: 0.75rem 0.85rem;
+		min-height: 44px;
 		font: inherit;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	button {
 		border: none;
 		border-radius: 0.75rem;
-		padding: 0.7rem 0.95rem;
+		padding: 0.75rem 0.95rem;
+		min-height: 44px;
 		font-family: var(--font-display);
 		font-weight: 700;
 		cursor: pointer;
 		background: var(--accent-bright);
-		color: #042f2e;
+		color: var(--accent-ink);
+		transition: transform 0.15s ease;
+	}
+	button:hover:not(:disabled) {
+		transform: scale(1.02);
+	}
+	button:active:not(:disabled) {
+		transform: scale(0.95);
 	}
 	button:disabled {
 		opacity: 0.6;

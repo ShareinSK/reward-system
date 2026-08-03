@@ -70,7 +70,7 @@
 		try {
 			await renameHousehold(household.id, nameDraft);
 			household = { ...household, name: nameDraft.trim() };
-			notice = 'Household name updated.';
+			notice = 'Group name updated.';
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		}
@@ -111,7 +111,7 @@
 
 		<form class="panel" onsubmit={saveName}>
 			<label>
-				<span>Household name</span>
+				<span>Group name</span>
 				<input bind:value={nameDraft} required />
 			</label>
 			<button type="submit">Save name</button>
@@ -148,7 +148,7 @@
 			</ul>
 			<p class="muted tip">
 				Already have a code from someone else?
-				<a href={resolve('/join/')}>Join another household</a>
+				<a href={resolve('/join/')}>Join another group</a>
 			</p>
 		</div>
 	{/if}
@@ -182,11 +182,16 @@
 	.panel {
 		display: grid;
 		gap: 0.75rem;
-		padding: 1.15rem 1.2rem;
+		padding: 1rem;
 		border-radius: 1.15rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		box-shadow: var(--shadow);
+	}
+	@media (min-width: 640px) {
+		.panel {
+			padding: 1.15rem 1.2rem;
+		}
 	}
 	.panel h2 {
 		margin: 0;
@@ -205,19 +210,36 @@
 		border: 1px solid var(--border);
 		background: var(--surface-strong);
 		color: var(--text);
-		padding: 0.65rem 0.8rem;
+		padding: 0.7rem 0.85rem;
+		min-height: 44px;
 		font: inherit;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	button {
 		border: none;
 		border-radius: 0.75rem;
-		padding: 0.65rem 0.95rem;
+		padding: 0.7rem 0.95rem;
+		min-height: 44px;
+		min-width: 44px;
 		font-family: var(--font-display);
 		font-weight: 700;
 		cursor: pointer;
 		background: var(--accent-bright);
-		color: #042f2e;
-		justify-self: start;
+		color: var(--accent-ink);
+		justify-self: stretch;
+		transition: transform 0.15s ease;
+	}
+	@media (min-width: 640px) {
+		button {
+			justify-self: start;
+		}
+	}
+	button:hover {
+		transform: scale(1.02);
+	}
+	button:active {
+		transform: scale(0.95);
 	}
 	.ghost {
 		background: var(--surface-strong);
@@ -226,15 +248,22 @@
 	}
 	.row {
 		display: flex;
-		flex-wrap: wrap;
+		flex-direction: column;
 		gap: 0.5rem;
+	}
+	@media (min-width: 640px) {
+		.row {
+			flex-direction: row;
+			flex-wrap: wrap;
+		}
 	}
 	.code {
 		margin: 0;
 		font-family: var(--font-display);
-		font-size: 1.8rem;
+		font-size: clamp(1.35rem, 5vw, 1.8rem);
 		letter-spacing: 0.18em;
-		color: var(--text);
+		color: var(--amber);
+		overflow-x: auto;
 	}
 	ul {
 		list-style: none;
@@ -245,11 +274,17 @@
 	}
 	li {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		gap: 0.75rem;
-		padding: 0.55rem 0;
+		padding: 0.65rem 0;
+		min-height: 44px;
+		align-items: center;
 		border-bottom: 1px solid var(--border);
 		color: var(--text);
+	}
+	li strong {
+		font-family: var(--font-display);
 	}
 	.tip a {
 		color: var(--accent);

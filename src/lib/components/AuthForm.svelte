@@ -51,7 +51,7 @@
 	<div class="auth-card__brand">
 		<p class="eyebrow">Reward System</p>
 		<h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
-		<p class="lede">Track family activities, points, and grand rewards together.</p>
+		<p class="lede">Track activities, points, and rewards together.</p>
 	</div>
 
 	{#if mode === 'signup'}
@@ -63,7 +63,7 @@
 
 	<label>
 		<span>Email</span>
-		<input bind:value={email} type="email" required autocomplete="email" placeholder="you@family.com" />
+		<input bind:value={email} type="email" required autocomplete="email" placeholder="you@email.com" />
 	</label>
 
 	<label>
@@ -107,12 +107,18 @@
 		width: min(100%, 26rem);
 		display: grid;
 		gap: 0.85rem;
-		padding: 1.75rem;
+		padding: 1.25rem;
 		border-radius: 1.25rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		backdrop-filter: blur(12px);
 		box-shadow: var(--shadow);
+	}
+
+	@media (min-width: 640px) {
+		.auth-card {
+			padding: 1.75rem;
+		}
 	}
 
 	.auth-card__brand h1 {
@@ -152,12 +158,15 @@
 		border: 1px solid var(--border);
 		background: var(--surface-strong);
 		color: var(--text);
-		padding: 0.7rem 0.85rem;
+		padding: 0.75rem 0.85rem;
+		min-height: 44px;
 		font: inherit;
+		width: 100%;
+		box-sizing: border-box;
 	}
 
 	input:focus {
-		outline: 2px solid rgba(13, 148, 136, 0.35);
+		outline: 2px solid rgba(99, 102, 241, 0.4);
 		outline-offset: 1px;
 	}
 
@@ -165,12 +174,22 @@
 		margin-top: 0.35rem;
 		border: none;
 		border-radius: 0.85rem;
-		padding: 0.8rem 1rem;
+		padding: 0.85rem 1rem;
+		min-height: 44px;
 		font-family: var(--font-display);
 		font-weight: 700;
-		background: linear-gradient(135deg, #14b8a6, #0d9488 55%, #f59e0b);
-		color: #042f2e;
+		background: linear-gradient(135deg, var(--accent), var(--accent-bright) 55%, var(--amber));
+		color: var(--accent-ink);
 		cursor: pointer;
+		transition: transform 0.15s ease;
+	}
+
+	button[type='submit']:hover:not(:disabled) {
+		transform: scale(1.02);
+	}
+
+	button[type='submit']:active:not(:disabled) {
+		transform: scale(0.95);
 	}
 
 	button[type='submit']:disabled {
@@ -185,7 +204,8 @@
 		cursor: pointer;
 		font-size: 0.85rem;
 		text-align: center;
-		padding: 0.35rem;
+		padding: 0.65rem;
+		min-height: 44px;
 	}
 
 	.alert {
