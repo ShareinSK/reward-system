@@ -4,12 +4,15 @@
 	import {
 		ensureHouseholdId,
 		fetchHousehold,
+		updateExperienceMode,
 		updateHouseholdSettings
 	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import { pushSupported, registerPushSubscription } from '$lib/notifications';
+	import { fetchMyProfile } from '$lib/profile';
 	import { settingsFromHousehold } from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { Household, HouseholdSettings } from '$lib/types';
+	import type { ExperienceMode, Household, HouseholdSettings } from '$lib/types';
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -19,6 +22,8 @@
 
 	let allowNegative = $state(false);
 	let allowDecimals = $state(false);
+	let experienceMode = $state<ExperienceMode>('kids');
+	let pushBusy = $state(false);
 
 	async function load() {
 		loading = true;
@@ -37,6 +42,7 @@
 			const settings = settingsFromHousehold(household);
 			allowNegative = settings.allow_negative_points;
 			allowDecimals = settings.allow_decimal_points;
+			experienceMode = household.experience_mode;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -60,14 +66,33 @@
 				allow_decimal_points: allowDecimals
 			};
 			const saved = await updateHouseholdSettings(household.id, next);
+			if (experienceMode !== household.experience_mode) {
+				await updateExperienceMode(household.id, experienceMode);
+			}
 			allowNegative = saved.allow_negative_points;
 			allowDecimals = saved.allow_decimal_points;
-			household = { ...household, ...saved };
-			notice = 'Settings saved.';
+			household = { ...household, ...saved, experience_mode: experienceMode };
+			notice = 'Guild Stats saved. Reload if the theme does not update.';
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
 			saving = false;
+		}
+	}
+
+	async function enablePush() {
+		pushBusy = true;
+		error = '';
+		try {
+			const ok = await registerPushSubscription();
+			notice = ok
+				? 'Push notifications enabled.'
+				: 'Push not available (needs install/permission or VAPID key).';
+			await fetchMyProfile();
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		} finally {
+			pushBusy = false;
 		}
 	}
 </script>
@@ -75,10 +100,8 @@
 <section class="page">
 	<header>
 		<p class="eyebrow">Configuration</p>
-		<h1>Settings</h1>
-		<p class="lede">
-			Tune scoring rules so everyone sees points the same way.
-		</p>
+		<h1>Guild Stats</h1>
+		<p class="lede">Tune scoring rules and choose Family adventures or Personal quests.</p>
 	</header>
 
 	{#if loading}
@@ -97,9 +120,37 @@
 			{/if}
 
 			<label class="toggle">
+				<input
+					type="radio"
+					name="mode"
+					value="kids"
+					checked={experienceMode === 'kids'}
+					onchange={() => (experienceMode = 'kids')}
+				/>
+				<span>
+					<strong>Family adventures</strong>
+					<em>Playful UI for family milestones.</em>
+				</span>
+			</label>
+
+			<label class="toggle">
+				<input
+					type="radio"
+					name="mode"
+					value="goals"
+					checked={experienceMode === 'goals'}
+					onchange={() => (experienceMode = 'goals')}
+				/>
+				<span>
+					<strong>Personal quests</strong>
+					<em>Elegant quests and personal bounties.</em>
+				</span>
+			</label>
+
+			<label class="toggle">
 				<input bind:checked={allowDecimals} type="checkbox" />
 				<span>
-					<strong>Allow decimal points</strong>
+					<strong>Allow decimal XP</strong>
 					<em>When off, scores stay whole numbers (1, 2, 5) instead of values like 2.5.</em>
 				</span>
 			</label>
@@ -107,13 +158,36 @@
 			<label class="toggle">
 				<input bind:checked={allowNegative} type="checkbox" />
 				<span>
-					<strong>Allow negative points</strong>
-					<em>When off, managers can’t subtract points for activities. Claiming a grand reward still spends points.</em>
+					<strong>Allow negative XP</strong>
+					<em>When off, guild mates can’t subtract XP for quests. Claiming a bounty still spends XP.</em>
 				</span>
 			</label>
 
-			<button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+			<button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save Guild Stats'}</button>
 		</form>
+
+		<div class="panel">
+			<h2>Notifications</h2>
+			<p class="muted">
+				Install HeroHabbits as an app (Add to Home Screen) for the best push experience on phones.
+			</p>
+			{#if pushSupported()}
+				<button type="button" class="secondary" disabled={pushBusy} onclick={enablePush}>
+					{pushBusy ? 'Enabling…' : 'Enable push notifications'}
+				</button>
+			{:else}
+				<p class="muted">Push is not supported in this browser.</p>
+			{/if}
+			<p class="legal">
+				<a href={resolve('/privacy/')}>Privacy</a>
+				·
+				<a href={resolve('/terms/')}>Terms</a>
+				·
+				<a href={resolve('/feedback/')}>Feedback</a>
+				·
+				<a href={resolve('/billing/')}>Billing</a>
+			</p>
+		</div>
 	{/if}
 </section>
 
@@ -131,10 +205,15 @@
 		color: var(--accent);
 		font-family: var(--font-display);
 	}
-	h1 {
+	h1,
+	h2 {
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	h2 {
+		font-size: 1.05rem;
+		margin: 0;
 	}
 	.lede,
 	.muted {
@@ -215,6 +294,12 @@
 		color: var(--accent-ink);
 		transition: transform 0.15s ease;
 	}
+	button.secondary {
+		background: var(--surface-strong);
+		color: var(--accent);
+		border: 1px solid var(--border-strong);
+		justify-self: start;
+	}
 	@media (min-width: 640px) {
 		button {
 			justify-self: start;
@@ -242,5 +327,13 @@
 		border-radius: 0.75rem;
 		background: var(--ok-bg);
 		color: var(--ok-text);
+	}
+	.legal {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+	}
+	.legal a {
+		color: var(--accent-bright);
 	}
 </style>

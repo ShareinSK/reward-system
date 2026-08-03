@@ -72,7 +72,7 @@
 				return;
 			}
 			if (!id) {
-				error = 'Missing participant.';
+				error = 'Missing questor.';
 				loading = false;
 				return;
 			}
@@ -89,7 +89,7 @@
 				settings = settingsFromHousehold(s);
 				const found = people.find((p) => p.id === id) ?? null;
 				if (!found) {
-					error = 'Participant not found.';
+					error = 'Questor not found.';
 					participant = null;
 				} else {
 					participant = found;
@@ -111,7 +111,7 @@
 	async function redeemReward(reward: GrandReward) {
 		if (!participant) return;
 		if (totalBalance < Number(reward.points_required)) {
-			error = 'Not enough points to claim this reward.';
+			error = 'Not enough XP to claim this bounty.';
 			return;
 		}
 		saving = true;
@@ -128,17 +128,17 @@
 </script>
 
 <section class="page">
-	<a class="back" href={resolve('/dashboard/')}>← Leaderboard</a>
+	<a class="back" href={resolve('/dashboard/')}>← Quest Log</a>
 
 	{#if loading}
 		<p class="muted">Loading…</p>
 	{:else if !participant}
-		<p class="alert" role="alert">{error || 'Participant not found.'}</p>
+		<p class="alert" role="alert">{error || 'Questor not found.'}</p>
 	{:else}
 		<header class="header">
 			<span class="swatch" style={`background:${participant.avatar_color}`}></span>
 			<div>
-				<p class="eyebrow">Participant</p>
+				<p class="eyebrow">Questor</p>
 				<h1>{participant.name}</h1>
 			</div>
 		</header>
@@ -167,21 +167,21 @@
 				<RewardVault balance={totalBalance} {targetPoints} class="h-full min-h-[280px]" />
 				{#if nextReward}
 					<p class="vault-hint">
-						Next goal: <strong>{nextReward.title}</strong> ·
-						{formatPoints(Number(nextReward.points_required), decimals)} pts
+						Next bounty: <strong>{nextReward.title}</strong> ·
+						{formatPoints(Number(nextReward.points_required), decimals)} XP
 					</p>
 				{/if}
 			</div>
 
 			<div class="panel">
-				<h2>Grand rewards</h2>
+				<h2>Bounties</h2>
 				<ul class="list">
 					{#each rewards as reward (reward.id)}
 						<li>
 							<div>
 								<strong>{reward.title}</strong>
 								<span class="muted"
-									>{formatPoints(Number(reward.points_required), decimals)} pts</span
+									>{formatPoints(Number(reward.points_required), decimals)} XP</span
 								>
 							</div>
 							<button
@@ -190,11 +190,11 @@
 								disabled={saving || totalBalance < Number(reward.points_required)}
 								onclick={() => redeemReward(reward)}
 							>
-								Claim
+								Claim Bounty
 							</button>
 						</li>
 					{:else}
-						<li class="muted">No rewards yet.</li>
+						<li class="muted">No bounties yet.</li>
 					{/each}
 				</ul>
 			</div>

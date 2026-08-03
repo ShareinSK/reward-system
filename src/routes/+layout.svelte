@@ -3,8 +3,14 @@
 	import { goto } from '$app/navigation';
 	import { base, resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.svg';
+	import logoIcon from '$lib/assets/logo-app.png';
+	import logoWordmark from '$lib/assets/word-mark.svg';
+	import { copyFor, navLabels } from '$lib/experience';
+	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import { fetchMyProfile, isStaffRole } from '$lib/profile';
 	import { getSupabaseConfigError, supabase } from '$lib/supabase';
+	import type { ExperienceMode, Profile } from '$lib/types';
 	import type { Session } from '@supabase/supabase-js';
 	import './layout.css';
 
@@ -13,15 +19,37 @@
 	let session = $state<Session | null>(null);
 	let ready = $state(false);
 	let configError = $state<string | null>(null);
+	let experienceMode = $state<ExperienceMode>('kids');
+	let profile = $state<Profile | null>(null);
 
-	const nav = [
-		{ href: '/dashboard', label: 'Dashboard', icon: 'home' },
-		{ href: '/participants', label: 'Participants', icon: 'people' },
-		{ href: '/activities', label: 'Activities', icon: 'tasks' },
-		{ href: '/rewards', label: 'Rewards', icon: 'gift' },
-		{ href: '/share', label: 'Share', icon: 'share' },
-		{ href: '/settings', label: 'Settings', icon: 'settings' }
-	] as const;
+	const labels = $derived(navLabels(experienceMode));
+	const useGoalsUi = $derived(experienceMode === 'goals');
+
+	const nav = $derived([
+		{ href: '/dashboard', label: labels.dashboard, icon: 'home' },
+		{ href: '/participants', label: labels.participants, icon: 'people' },
+		{ href: '/activities', label: labels.activities, icon: 'tasks' },
+		{ href: '/rewards', label: labels.rewards, icon: 'gift' },
+		{ href: '/share', label: labels.share, icon: 'share' },
+		{ href: '/settings', label: labels.settings, icon: 'settings' }
+	] as const);
+
+	async function refreshHouseholdChrome(userSession: Session | null) {
+		if (!userSession) {
+			experienceMode = 'kids';
+			profile = null;
+			return;
+		}
+		try {
+			profile = await fetchMyProfile();
+			const hid = await ensureHouseholdId();
+			setActiveHouseholdId(hid);
+			const household = await fetchHousehold(hid);
+			experienceMode = household.experience_mode;
+		} catch {
+			// Migration may not be applied yet
+		}
+	}
 
 	$effect(() => {
 		let mounted = true;
@@ -32,9 +60,10 @@
 			return;
 		}
 
-		supabase.auth.getSession().then(({ data }) => {
+		supabase.auth.getSession().then(async ({ data }) => {
 			if (!mounted) return;
 			session = data.session;
+			await refreshHouseholdChrome(data.session);
 			ready = true;
 		});
 
@@ -42,6 +71,7 @@
 			data: { subscription }
 		} = supabase.auth.onAuthStateChange((_event, next) => {
 			session = next;
+			refreshHouseholdChrome(next);
 		});
 
 		return () => {
@@ -51,7 +81,17 @@
 	});
 
 	const path = $derived((page.url.pathname.replace(base, '') || '/').replace(/\/$/, '') || '/');
-	const showChrome = $derived(ready && session && path !== '/' && !path.startsWith('/login'));
+	const showChrome = $derived(
+		ready &&
+			session &&
+			path !== '/' &&
+			!path.startsWith('/login') &&
+			!path.startsWith('/auth') &&
+			!path.startsWith('/privacy') &&
+			!path.startsWith('/terms') &&
+			!path.startsWith('/feedback') &&
+			!path.startsWith('/join')
+	);
 
 	async function signOut() {
 		setActiveHouseholdId(null);
@@ -65,33 +105,49 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href={favicon} type="image/svg+xml" />
+	<link rel="apple-touch-icon" href={`${base}/pwa/apple-touch-icon.png`} />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700&family=Outfit:wght@400;500;600&display=swap"
-		rel="stylesheet"
-	/>
-	<title>Reward System</title>
+	{#if useGoalsUi}
+		<link
+			href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+			rel="stylesheet"
+		/>
+	{:else}
+		<link
+			href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700&family=Outfit:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		/>
+	{/if}
+	<title>HeroHabbits — Quest Log</title>
+	<meta name="description" content={copyFor(experienceMode, 'tagline')} />
+	<meta name="theme-color" content={useGoalsUi ? '#0f766e' : '#6366f1'} />
 </svelte:head>
 
-<div class="app-shell" class:app-shell--nav={showChrome}>
+<div
+	class="app-shell"
+	class:app-shell--nav={showChrome}
+	class:theme-kids={!useGoalsUi}
+	class:theme-goals={useGoalsUi}
+>
 	{#if showChrome}
 		<header class="topbar">
 			<a class="brand" href={resolve('/dashboard/')}>
-				<span class="brand__mark" aria-hidden="true"></span>
-				<span class="brand__name">Reward System</span>
+				<img class="brand__icon" src={logoIcon} alt="" width="64" height="64" />
+				<img class="brand__wordmark" src={logoWordmark} alt="HeroHabbits" width="240" height="65" />
 			</a>
 
 			<nav class="top-nav" aria-label="Primary">
 				{#each nav as item}
-					<a
-						href={resolve(`${item.href}/`)}
-						class:active={isActive(item.href)}
-					>
+					<a href={resolve(`${item.href}/`)} class:active={isActive(item.href)}>
 						{item.label}
 					</a>
 				{/each}
+				<a href={resolve('/billing/')} class:active={isActive('/billing')}>Billing</a>
+				{#if isStaffRole(profile?.app_role)}
+					<a href={resolve('/admin/')} class:active={isActive('/admin')}>Admin</a>
+				{/if}
 			</nav>
 
 			<button type="button" class="signout" onclick={signOut}>Sign out</button>
@@ -160,9 +216,7 @@
 				<h1>Supabase is not configured for this deploy</h1>
 				<p>{configError}</p>
 				<ol>
-					<li>
-						Repo → Settings → Secrets and variables → Actions
-					</li>
+					<li>Repo → Settings → Secrets and variables → Actions</li>
 					<li>
 						Add <code>PUBLIC_SUPABASE_URL</code> and
 						<code>PUBLIC_SUPABASE_ANON_KEY</code>
@@ -187,9 +241,9 @@
 		font-family: var(--font-body);
 		color: var(--text);
 		background:
-			radial-gradient(ellipse at 12% -8%, rgba(99, 102, 241, 0.18), transparent 42%),
-			radial-gradient(ellipse at 92% 4%, rgba(245, 158, 11, 0.14), transparent 38%),
-			linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 48%, #dde4ff 100%);
+			radial-gradient(ellipse at 12% -8%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 42%),
+			radial-gradient(ellipse at 92% 4%, color-mix(in srgb, var(--amber) 14%, transparent), transparent 38%),
+			linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 48%, var(--bg-2) 100%);
 	}
 
 	.app-shell {
@@ -207,24 +261,26 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.75rem;
-		padding: 0.75rem 1rem;
+		padding: 0.65rem 1rem;
 		border-bottom: 1px solid var(--border);
-		background: rgba(244, 246, 255, 0.9);
+		background: color-mix(in srgb, var(--bg-0) 90%, white);
 		backdrop-filter: blur(10px);
 		position: sticky;
 		top: 0;
 		z-index: 20;
+		min-height: 4.25rem;
 	}
 
 	@media (min-width: 640px) {
 		.topbar {
-			padding: 0.9rem 1.5rem;
+			padding: 0.75rem 1.5rem;
+			min-height: 4.75rem;
 		}
 	}
 
 	@media (min-width: 768px) {
 		.topbar {
-			padding: 0.9rem clamp(1rem, 3vw, 2rem);
+			padding: 0.65rem clamp(1rem, 3vw, 2rem);
 		}
 
 		.app-shell--nav {
@@ -240,20 +296,44 @@
 		color: var(--text);
 		margin-right: auto;
 		min-height: 44px;
+		padding: 0.15rem 0.35rem 0.15rem 0.15rem;
+		border-radius: 0.85rem;
 	}
 
-	.brand__mark {
-		width: 0.95rem;
-		height: 0.95rem;
-		border-radius: 0.35rem;
-		background: linear-gradient(135deg, var(--accent), var(--amber));
-		box-shadow: 0 0 14px rgba(99, 102, 241, 0.35);
+	.brand__icon {
+		display: block;
+		width: 3rem;
+		height: 3rem;
+		border-radius: 0.7rem;
+		object-fit: cover;
+		flex-shrink: 0;
+		box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 18%, transparent);
 	}
 
-	.brand__name {
-		font-family: var(--font-display);
-		font-weight: 700;
-		letter-spacing: -0.02em;
+	.brand__wordmark {
+		display: block;
+		height: 1.85rem;
+		width: auto;
+		max-width: min(48vw, 11rem);
+		object-fit: contain;
+		object-position: left center;
+	}
+
+	@media (min-width: 640px) {
+		.brand {
+			gap: 0.7rem;
+		}
+
+		.brand__icon {
+			width: 3.5rem;
+			height: 3.5rem;
+			border-radius: 0.85rem;
+		}
+
+		.brand__wordmark {
+			height: 2.35rem;
+			max-width: 14rem;
+		}
 	}
 
 	.top-nav {
@@ -323,7 +403,7 @@
 		background: rgba(255, 255, 255, 0.96);
 		border-top: 1px solid var(--border);
 		backdrop-filter: blur(12px);
-		box-shadow: 0 -8px 24px rgba(99, 102, 241, 0.08);
+		box-shadow: 0 -8px 24px color-mix(in srgb, var(--accent) 8%, transparent);
 	}
 
 	.bottom-nav a {
@@ -345,7 +425,7 @@
 
 	.bottom-nav a.active {
 		color: var(--accent-bright);
-		background: rgba(99, 102, 241, 0.12);
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
 	}
 
 	.nav-icon {

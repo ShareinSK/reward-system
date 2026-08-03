@@ -2,6 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import UpgradeBanner from '$lib/components/UpgradeBanner.svelte';
+	import { fetchPlanLimits, isAtCap } from '$lib/entitlements';
+	import { isFeatureEnabled } from '$lib/featureFlags';
 	import {
 		ensureHouseholdId,
 		fetchHousehold,
@@ -11,7 +14,8 @@
 	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import { supabase } from '$lib/supabase';
-	import type { Household, HouseholdMember } from '$lib/types';
+	import type { Household, HouseholdMember, PlanLimits } from '$lib/types';
+	import { FREE_LIMITS } from '$lib/types';
 
 	let household = $state<Household | null>(null);
 	let members = $state<HouseholdMember[]>([]);
@@ -20,12 +24,15 @@
 	let notice = $state('');
 	let nameDraft = $state('');
 	let copied = $state(false);
+	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
+	let billingEnabled = $state(false);
 
 	const inviteLink = $derived(
 		household
 			? `${page.url.origin}${resolve('/join/')}?code=${encodeURIComponent(household.invite_code)}`
 			: ''
 	);
+	const atCap = $derived(isAtCap(members.length, limits.max_members));
 
 	async function load() {
 		loading = true;
@@ -40,9 +47,17 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			household = await fetchHousehold(hid);
-			nameDraft = household.name;
-			members = await fetchHouseholdMembers(hid);
+			const [hh, mem, lim, billing] = await Promise.all([
+				fetchHousehold(hid),
+				fetchHouseholdMembers(hid),
+				fetchPlanLimits(hid),
+				isFeatureEnabled('billing_checkout', hid)
+			]);
+			household = hh;
+			nameDraft = hh.name;
+			members = mem;
+			limits = lim;
+			billingEnabled = billing;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -70,7 +85,7 @@
 		try {
 			await renameHousehold(household.id, nameDraft);
 			household = { ...household, name: nameDraft.trim() };
-			notice = 'Group name updated.';
+			notice = 'Guild name updated.';
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		}
@@ -91,10 +106,11 @@
 
 <section class="page">
 	<header>
-		<p class="eyebrow">Sharing</p>
-		<h1>Share management</h1>
+		<p class="eyebrow">Guild</p>
+		<h1>Guild</h1>
+		<p class="cap-hint">{members.length} / {limits.max_members} guild mates on {limits.plan}</p>
 		<p class="lede">
-			Invite another person to manage the same participants, activities, rewards, and ledger.
+			Invite another person to manage the same questors, quests, bounties, and ledger.
 			They’ll need to create an account, then open your invite link or enter the code.
 		</p>
 	</header>
@@ -111,31 +127,35 @@
 
 		<form class="panel" onsubmit={saveName}>
 			<label>
-				<span>Group name</span>
+				<span>Guild name</span>
 				<input bind:value={nameDraft} required />
 			</label>
 			<button type="submit">Save name</button>
 		</form>
 
-		<div class="panel">
-			<h2>Invite code</h2>
-			<p class="code">{household.invite_code}</p>
-			<div class="row">
-				<button type="button" onclick={() => copyText(household!.invite_code)}>
-					{copied ? 'Copied' : 'Copy code'}
-				</button>
-				<button type="button" class="ghost" onclick={rotateCode}>Rotate code</button>
+		{#if atCap}
+			<UpgradeBanner resource="guild mates" limit={limits.max_members} {billingEnabled} />
+		{:else}
+			<div class="panel">
+				<h2>Invite code</h2>
+				<p class="code">{household.invite_code}</p>
+				<div class="row">
+					<button type="button" onclick={() => copyText(household!.invite_code)}>
+						{copied ? 'Copied' : 'Copy code'}
+					</button>
+					<button type="button" class="ghost" onclick={rotateCode}>Rotate code</button>
+				</div>
+
+				<label class="link-field">
+					<span>Invite link</span>
+					<input readonly value={inviteLink} />
+				</label>
+				<button type="button" onclick={() => copyText(inviteLink)}>Copy invite link</button>
 			</div>
-
-			<label class="link-field">
-				<span>Invite link</span>
-				<input readonly value={inviteLink} />
-			</label>
-			<button type="button" onclick={() => copyText(inviteLink)}>Copy invite link</button>
-		</div>
+		{/if}
 
 		<div class="panel">
-			<h2>Managers</h2>
+			<h2>Guild mates</h2>
 			<ul>
 				{#each members as m (m.user_id)}
 					<li>
@@ -143,12 +163,12 @@
 						<span class="muted">{m.role}</span>
 					</li>
 				{:else}
-					<li class="muted">No members yet.</li>
+					<li class="muted">No guild mates yet.</li>
 				{/each}
 			</ul>
 			<p class="muted tip">
 				Already have a code from someone else?
-				<a href={resolve('/join/')}>Join another group</a>
+				<a href={resolve('/join/')}>Join another guild</a>
 			</p>
 		</div>
 	{/if}
@@ -171,6 +191,12 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	.cap-hint {
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+		text-transform: capitalize;
 	}
 	.lede,
 	.muted,

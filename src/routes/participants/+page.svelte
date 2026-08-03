@@ -1,9 +1,14 @@
 <script lang="ts">
 	import { fetchParticipants } from '$lib/api';
-	import { ensureHouseholdId } from '$lib/household';
+	import UpgradeBanner from '$lib/components/UpgradeBanner.svelte';
+	import { fetchPlanLimits, isAtCap, parsePlanLimitError } from '$lib/entitlements';
+	import { copyFor } from '$lib/experience';
+	import { isFeatureEnabled } from '$lib/featureFlags';
+	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import { supabase } from '$lib/supabase';
-	import type { Participant } from '$lib/types';
+	import type { ExperienceMode, Participant, PlanLimits } from '$lib/types';
+	import { FREE_LIMITS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
@@ -13,6 +18,13 @@
 	let error = $state('');
 	let loading = $state(true);
 	let adding = $state(false);
+	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
+	let mode = $state<ExperienceMode>('kids');
+	let billingEnabled = $state(false);
+
+	const atCap = $derived(isAtCap(participants.length, limits.max_participants));
+	const label = $derived(copyFor(mode, 'participant'));
+	const labelPlural = $derived(copyFor(mode, 'participants'));
 
 	async function load() {
 		loading = true;
@@ -24,8 +36,18 @@
 				goto(resolve('/'), { replaceState: true });
 				return;
 			}
-			setActiveHouseholdId(await ensureHouseholdId());
-			participants = await fetchParticipants();
+			const hid = await ensureHouseholdId();
+			setActiveHouseholdId(hid);
+			const [list, lim, household, billing] = await Promise.all([
+				fetchParticipants(),
+				fetchPlanLimits(hid),
+				fetchHousehold(hid),
+				isFeatureEnabled('billing_checkout', hid)
+			]);
+			participants = list;
+			limits = lim;
+			mode = household.experience_mode;
+			billingEnabled = billing;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -38,6 +60,7 @@
 	});
 
 	function openAdd() {
+		if (atCap) return;
 		adding = true;
 		error = '';
 	}
@@ -51,6 +74,10 @@
 	async function addParticipant(e: Event) {
 		e.preventDefault();
 		error = '';
+		if (atCap) {
+			error = `Free plan allows ${limits.max_participants} ${labelPlural.toLowerCase()}.`;
+			return;
+		}
 		const {
 			data: { user }
 		} = await supabase.auth.getUser();
@@ -63,7 +90,8 @@
 			household_id
 		});
 		if (insertError) {
-			error = insertError.message;
+			const planErr = parsePlanLimitError(insertError.message);
+			error = planErr?.message ?? insertError.message;
 			return;
 		}
 		name = '';
@@ -84,14 +112,19 @@
 <section class="page">
 	<header class="header">
 		<div>
-			<p class="eyebrow">Master lists</p>
-			<h1>Participants</h1>
+			<p class="eyebrow">Guild lists</p>
+			<h1>{labelPlural}</h1>
+			<p class="cap-hint">{participants.length} / {limits.max_participants} on {limits.plan}</p>
 		</div>
-		<button type="button" class="add-btn add-btn--desktop" onclick={openAdd} hidden={adding}>
+		<button type="button" class="add-btn add-btn--desktop" onclick={openAdd} hidden={adding || atCap}>
 			<span class="add-btn__plus" aria-hidden="true">+</span>
-			Add participant
+			Add {label}
 		</button>
 	</header>
+
+	{#if atCap}
+		<UpgradeBanner resource={labelPlural.toLowerCase()} limit={limits.max_participants} {billingEnabled} />
+	{/if}
 
 	{#if error}
 		<p class="alert">{error}</p>
@@ -111,7 +144,7 @@
 				</li>
 			{:else}
 				{#if !adding}
-					<li class="muted empty">No participants yet. Tap + to add one.</li>
+					<li class="muted empty">No {labelPlural.toLowerCase()} yet. Tap + to add one.</li>
 				{/if}
 			{/each}
 
@@ -138,13 +171,13 @@
 		</ul>
 	{/if}
 
-	{#if !adding}
+	{#if !adding && !atCap}
 		<button
 			type="button"
 			class="fab"
 			onclick={openAdd}
-			aria-label="Add participant"
-			title="Add participant"
+			aria-label="Add {label}"
+			title="Add {label}"
 		>
 			<span aria-hidden="true">+</span>
 		</button>
@@ -185,6 +218,13 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+
+	.cap-hint {
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+		text-transform: capitalize;
 	}
 
 	.add-btn {

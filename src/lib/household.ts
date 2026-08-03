@@ -16,7 +16,29 @@ export async function fetchHousehold(householdId: string): Promise<Household> {
 		.eq('id', householdId)
 		.single();
 	if (error) throw error;
-	return data as Household;
+	const row = data as Partial<Household> & { id: string; name: string; invite_code: string };
+	return {
+		id: row.id,
+		name: row.name,
+		invite_code: row.invite_code,
+		allow_negative_points: Boolean(row.allow_negative_points),
+		allow_decimal_points: Boolean(row.allow_decimal_points),
+		experience_mode: row.experience_mode === 'goals' ? 'goals' : 'kids',
+		disabled: Boolean(row.disabled),
+		created_by: row.created_by ?? null,
+		created_at: row.created_at ?? new Date().toISOString()
+	};
+}
+
+export async function updateExperienceMode(
+	householdId: string,
+	mode: Household['experience_mode']
+): Promise<void> {
+	const { error } = await supabase
+		.from('households')
+		.update({ experience_mode: mode })
+		.eq('id', householdId);
+	if (error) throw error;
 }
 
 export async function fetchHouseholdMembers(householdId: string): Promise<HouseholdMember[]> {
