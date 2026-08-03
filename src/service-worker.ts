@@ -11,7 +11,7 @@ self.skipWaiting();
 clientsClaim();
 
 self.addEventListener('push', (event) => {
-	let title = 'HeroHabbits';
+	let title = 'Hero Habits';
 	let body = 'You have a new update.';
 	let url = '/';
 	try {

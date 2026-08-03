@@ -26,6 +26,7 @@
 	let copied = $state(false);
 	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
 	let billingEnabled = $state(false);
+	let pricingEnabled = $state(false);
 
 	const inviteLink = $derived(
 		household
@@ -47,17 +48,19 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [hh, mem, lim, billing] = await Promise.all([
+			const [hh, mem, lim, billing, pricing] = await Promise.all([
 				fetchHousehold(hid),
 				fetchHouseholdMembers(hid),
 				fetchPlanLimits(hid),
-				isFeatureEnabled('billing_checkout', hid)
+				isFeatureEnabled('billing_checkout', hid),
+				isFeatureEnabled('billing_pricing', hid)
 			]);
 			household = hh;
 			nameDraft = hh.name;
 			members = mem;
 			limits = lim;
 			billingEnabled = billing;
+			pricingEnabled = pricing;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -134,7 +137,12 @@
 		</form>
 
 		{#if atCap}
-			<UpgradeBanner resource="guild mates" limit={limits.max_members} {billingEnabled} />
+			<UpgradeBanner
+				resource="guild mates"
+				limit={limits.max_members}
+				{billingEnabled}
+				{pricingEnabled}
+			/>
 		{:else}
 			<div class="panel">
 				<h2>Invite code</h2>

@@ -107,6 +107,7 @@ export type Profile = {
 	email_opt_in: boolean;
 	push_opt_in: boolean;
 	last_active_at: string | null;
+	onboarding_completed_at?: string | null;
 };
 
 export type FeatureFlag = {

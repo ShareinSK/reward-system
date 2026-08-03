@@ -106,9 +106,9 @@
 
 <form class="auth-card" onsubmit={submit}>
 	<div class="auth-card__brand">
-		<div class="brand-lockup" aria-label="HeroHabbits">
+		<div class="brand-lockup" aria-label="Hero Habits">
 			<img class="brand-lockup__icon" src={logoIcon} alt="" width="72" height="72" />
-			<img class="brand-lockup__wordmark" src={logoWordmark} alt="HeroHabbits" width="280" height="76" />
+			<img class="brand-lockup__wordmark" src={logoWordmark} alt="Hero Habits" width="280" height="76" />
 		</div>
 		<h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
 		<p class="lede">Complete quests, earn XP, and claim bounties with your guild.</p>
@@ -141,7 +141,7 @@
 		</label>
 
 		<fieldset class="mode-pick">
-			<legend>I want to use HeroHabbits for</legend>
+			<legend>I want to use Hero Habits for</legend>
 			<label class="mode-option">
 				<input type="radio" name="experience" value="kids" bind:group={experienceMode} />
 				<span>

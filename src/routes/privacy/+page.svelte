@@ -8,7 +8,7 @@
 	<p class="muted">Last updated: August 2, 2026</p>
 
 	<p>
-		HeroHabbits (“we”, “us”) provides a guild habit, bounty, and quest tracking service. This
+		Hero Habits (“we”, “us”) provides a guild habit, bounty, and quest tracking service. This
 		policy explains what we collect and how we use it.
 	</p>
 

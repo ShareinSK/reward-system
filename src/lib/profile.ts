@@ -10,7 +10,7 @@ export async function fetchMyProfile(): Promise<Profile | null> {
 	const { data, error } = await supabase
 		.from('profiles')
 		.select(
-			'id, display_name, active_household_id, app_role, is_test, email_opt_in, push_opt_in, last_active_at'
+			'id, display_name, active_household_id, app_role, is_test, email_opt_in, push_opt_in, last_active_at, onboarding_completed_at'
 		)
 		.eq('id', user.id)
 		.maybeSingle();
@@ -31,7 +31,8 @@ export async function fetchMyProfile(): Promise<Profile | null> {
 			is_test: false,
 			email_opt_in: true,
 			push_opt_in: true,
-			last_active_at: null
+			last_active_at: null,
+			onboarding_completed_at: null
 		};
 	}
 

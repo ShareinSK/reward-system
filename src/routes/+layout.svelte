@@ -5,9 +5,13 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import logoIcon from '$lib/assets/logo-app.png';
 	import logoWordmark from '$lib/assets/word-mark.svg';
+	import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
 	import { copyFor, navLabels } from '$lib/experience';
+	import { fetchEntitlement, startTrial } from '$lib/entitlements';
+	import { isFeatureEnabled } from '$lib/featureFlags';
 	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import { shouldStartOnboarding } from '$lib/onboarding';
 	import { fetchMyProfile, isStaffRole } from '$lib/profile';
 	import { getSupabaseConfigError, supabase } from '$lib/supabase';
 	import type { ExperienceMode, Profile } from '$lib/types';
@@ -21,6 +25,8 @@
 	let configError = $state<string | null>(null);
 	let experienceMode = $state<ExperienceMode>('kids');
 	let profile = $state<Profile | null>(null);
+	let pricingEnabled = $state(false);
+	let showOnboarding = $state(false);
 
 	const labels = $derived(navLabels(experienceMode));
 	const useGoalsUi = $derived(experienceMode === 'goals');
@@ -38,14 +44,34 @@
 		if (!userSession) {
 			experienceMode = 'kids';
 			profile = null;
+			pricingEnabled = false;
+			showOnboarding = false;
 			return;
 		}
 		try {
 			profile = await fetchMyProfile();
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const household = await fetchHousehold(hid);
+			const [household, pricing, entitlement] = await Promise.all([
+				fetchHousehold(hid),
+				isFeatureEnabled('billing_pricing', hid),
+				fetchEntitlement(hid)
+			]);
 			experienceMode = household.experience_mode;
+			pricingEnabled = pricing;
+
+			// Soft launch: start Pro trial automatically when pricing UI is off.
+			if (!pricing && entitlement?.plan === 'free') {
+				try {
+					await startTrial(15);
+				} catch {
+					// Already trial/pro, or not owner / migration missing
+				}
+			}
+
+			if (shouldStartOnboarding(profile)) {
+				showOnboarding = true;
+			}
 		} catch {
 			// Migration may not be applied yet
 		}
@@ -102,6 +128,24 @@
 	function isActive(href: string) {
 		return path === href || path.startsWith(href + '/');
 	}
+
+	function tourTargetFor(href: string) {
+		const key = href.replace(/^\//, '');
+		return `nav-${key}`;
+	}
+
+	function closeOnboarding() {
+		showOnboarding = false;
+	}
+
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const onReplay = () => {
+			showOnboarding = true;
+		};
+		window.addEventListener('hh:start-onboarding', onReplay);
+		return () => window.removeEventListener('hh:start-onboarding', onReplay);
+	});
 </script>
 
 <svelte:head>
@@ -120,7 +164,7 @@
 			rel="stylesheet"
 		/>
 	{/if}
-	<title>HeroHabbits — Quest Log</title>
+	<title>Hero Habits — Quest Log</title>
 	<meta name="description" content={copyFor(experienceMode, 'tagline')} />
 	<meta name="theme-color" content={useGoalsUi ? '#0f766e' : '#6366f1'} />
 </svelte:head>
@@ -135,16 +179,22 @@
 		<header class="topbar">
 			<a class="brand" href={resolve('/dashboard/')}>
 				<img class="brand__icon" src={logoIcon} alt="" width="64" height="64" />
-				<img class="brand__wordmark" src={logoWordmark} alt="HeroHabbits" width="240" height="65" />
+				<img class="brand__wordmark" src={logoWordmark} alt="Hero Habits" width="240" height="65" />
 			</a>
 
 			<nav class="top-nav" aria-label="Primary">
 				{#each nav as item}
-					<a href={resolve(`${item.href}/`)} class:active={isActive(item.href)}>
+					<a
+						href={resolve(`${item.href}/`)}
+						class:active={isActive(item.href)}
+						data-tour={tourTargetFor(item.href)}
+					>
 						{item.label}
 					</a>
 				{/each}
-				<a href={resolve('/billing/')} class:active={isActive('/billing')}>Billing</a>
+				{#if pricingEnabled}
+					<a href={resolve('/billing/')} class:active={isActive('/billing')}>Billing</a>
+				{/if}
 				{#if isStaffRole(profile?.app_role)}
 					<a href={resolve('/admin/')} class:active={isActive('/admin')}>Admin</a>
 				{/if}
@@ -160,6 +210,7 @@
 					class:active={isActive(item.href)}
 					aria-label={item.label}
 					title={item.label}
+					data-tour={tourTargetFor(item.href)}
 				>
 					{#if item.icon === 'home'}
 						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -228,6 +279,10 @@
 			{@render children()}
 		{/if}
 	</main>
+
+	{#if showChrome && showOnboarding}
+		<OnboardingGuide open={showOnboarding} {experienceMode} onClose={closeOnboarding} />
+	{/if}
 </div>
 
 <style>

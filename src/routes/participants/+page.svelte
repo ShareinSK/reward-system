@@ -21,6 +21,7 @@
 	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
 	let mode = $state<ExperienceMode>('kids');
 	let billingEnabled = $state(false);
+	let pricingEnabled = $state(false);
 
 	const atCap = $derived(isAtCap(participants.length, limits.max_participants));
 	const label = $derived(copyFor(mode, 'participant'));
@@ -38,16 +39,18 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [list, lim, household, billing] = await Promise.all([
+			const [list, lim, household, billing, pricing] = await Promise.all([
 				fetchParticipants(),
 				fetchPlanLimits(hid),
 				fetchHousehold(hid),
-				isFeatureEnabled('billing_checkout', hid)
+				isFeatureEnabled('billing_checkout', hid),
+				isFeatureEnabled('billing_pricing', hid)
 			]);
 			participants = list;
 			limits = lim;
 			mode = household.experience_mode;
 			billingEnabled = billing;
+			pricingEnabled = pricing;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -116,14 +119,19 @@
 			<h1>{labelPlural}</h1>
 			<p class="cap-hint">{participants.length} / {limits.max_participants} on {limits.plan}</p>
 		</div>
-		<button type="button" class="add-btn add-btn--desktop" onclick={openAdd} hidden={adding || atCap}>
+		<button type="button" class="add-btn add-btn--desktop" onclick={openAdd} hidden={adding || atCap} data-tour="add-participant">
 			<span class="add-btn__plus" aria-hidden="true">+</span>
 			Add {label}
 		</button>
 	</header>
 
 	{#if atCap}
-		<UpgradeBanner resource={labelPlural.toLowerCase()} limit={limits.max_participants} {billingEnabled} />
+		<UpgradeBanner
+			resource={labelPlural.toLowerCase()}
+			limit={limits.max_participants}
+			{billingEnabled}
+			{pricingEnabled}
+		/>
 	{/if}
 
 	{#if error}
@@ -178,6 +186,7 @@
 			onclick={openAdd}
 			aria-label="Add {label}"
 			title="Add {label}"
+			data-tour="add-participant"
 		>
 			<span aria-hidden="true">+</span>
 		</button>

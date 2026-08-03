@@ -4,31 +4,35 @@
 	let {
 		resource = 'items',
 		limit = 0,
-		billingEnabled = false
+		billingEnabled = false,
+		pricingEnabled = false
 	}: {
 		resource?: string;
 		limit?: number;
 		billingEnabled?: boolean;
+		pricingEnabled?: boolean;
 	} = $props();
 </script>
 
 <aside class="upgrade" role="status">
-	<p class="upgrade__title">Free plan limit reached</p>
+	<p class="upgrade__title">Plan limit reached</p>
 	<p class="upgrade__body">
-		You can have up to <strong>{limit}</strong> {resource} on Free.
-		{#if billingEnabled}
+		You can have up to <strong>{limit}</strong> {resource} on your current plan.
+		{#if pricingEnabled && billingEnabled}
 			Upgrade to Pro for higher limits.
 		{:else}
-			Pro subscriptions are coming soon — leave feedback if you need more room.
+			During soft launch, send feedback if you need more room.
 		{/if}
 	</p>
 	<div class="upgrade__actions">
-		{#if billingEnabled}
+		{#if pricingEnabled && billingEnabled}
 			<a class="btn" href={resolve('/billing/')}>Upgrade to Pro</a>
 		{:else}
 			<a class="btn ghost" href={resolve('/feedback/')}>Send feedback</a>
 		{/if}
-		<a class="link" href={resolve('/billing/')}>View plan details</a>
+		{#if pricingEnabled}
+			<a class="link" href={resolve('/billing/')}>View plan details</a>
+		{/if}
 	</div>
 </aside>
 

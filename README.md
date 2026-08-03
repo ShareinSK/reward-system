@@ -1,4 +1,4 @@
-# HeroHabbits
+# Hero Habits
 
 Kids rewards and personal goal tracking for households — soft-launch ready with free-tier caps, admin controls, PWA notifications, and Stripe wiring for when you turn subscriptions on.
 
@@ -38,6 +38,8 @@ Kids rewards and personal goal tracking for households — soft-launch ready wit
 
 The login screen includes **Continue with Google**. New Google users still get a household via the existing signup trigger.
 
+New guilds start on a **15-day Pro trial** automatically. Pricing UI is gated by the `billing_pricing` feature flag (off by default). Stripe checkout stays behind `billing_checkout`.
+
 ---
 
 ## Setup
@@ -60,7 +62,10 @@ In the Supabase SQL editor, run migrations in order:
 1. `supabase/schema.sql` (if new project)
 2. `supabase/migration_households.sql`
 3. `supabase/migration_settings.sql`
-4. **`supabase/migration_herohabbits.sql`** ← entitlements, flags, caps, admin RPCs
+4. **`supabase/migration_herohabits.sql`** ← entitlements, flags, caps, admin RPCs
+5. **`supabase/migration_auto_trial_pricing_flag.sql`** ← auto Pro trial + `billing_pricing` flag
+6. `supabase/migration_google_oauth.sql` (if using Google sign-in)
+7. **`supabase/migration_onboarding_guide.sql`** ← interactive new-user guide flag
 
 Promote yourself to super admin:
 
@@ -84,7 +89,7 @@ supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
 supabase secrets set RESEND_API_KEY=...
 supabase secrets set VAPID_PUBLIC_KEY=...
 supabase secrets set VAPID_PRIVATE_KEY=...
-supabase secrets set VAPID_SUBJECT=mailto:you@example.com
+supabase secrets set VAPID_SUBJECT=mailto:feedback@herohabits.app
 supabase secrets set NOTIFICATION_CRON_SECRET=long-random-string
 ```
 
@@ -97,10 +102,11 @@ In **Admin → Plan prices**, paste Stripe Price IDs for US (`$4.99`) and IN (`�
 
 ### 4. Soft launch checklist
 
-- [ ] Run `migration_herohabbits.sql`
+- [ ] Run `migration_herohabits.sql`
+- [ ] Run `migration_auto_trial_pricing_flag.sql`
+- [ ] Run `migration_onboarding_guide.sql`
 - [ ] Set your `app_role` to `super_admin`
-- [ ] Keep `billing_checkout` **off** until community feedback is done
-- [ ] Grant Pro via Admin for feedback households as needed
+- [ ] Keep `billing_pricing` and `billing_checkout` **off** until ready to show prices / charge
 - [ ] Share Privacy / Terms / Feedback links
 - [ ] Install as PWA; enable push from Settings
 

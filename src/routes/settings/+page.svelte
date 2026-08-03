@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { isFeatureEnabled } from '$lib/featureFlags';
 	import {
 		ensureHouseholdId,
 		fetchHousehold,
@@ -8,6 +9,7 @@
 		updateHouseholdSettings
 	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import { resetOnboarding } from '$lib/onboarding';
 	import { pushSupported, registerPushSubscription } from '$lib/notifications';
 	import { fetchMyProfile } from '$lib/profile';
 	import { settingsFromHousehold } from '$lib/settings';
@@ -19,6 +21,8 @@
 	let error = $state('');
 	let notice = $state('');
 	let household = $state<Household | null>(null);
+	let pricingEnabled = $state(false);
+	let guideBusy = $state(false);
 
 	let allowNegative = $state(false);
 	let allowDecimals = $state(false);
@@ -38,7 +42,12 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			household = await fetchHousehold(hid);
+			const [hh, pricing] = await Promise.all([
+				fetchHousehold(hid),
+				isFeatureEnabled('billing_pricing', hid)
+			]);
+			household = hh;
+			pricingEnabled = pricing;
 			const settings = settingsFromHousehold(household);
 			allowNegative = settings.allow_negative_points;
 			allowDecimals = settings.allow_decimal_points;
@@ -93,6 +102,19 @@
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
 			pushBusy = false;
+		}
+	}
+
+	async function replayGuide() {
+		guideBusy = true;
+		error = '';
+		try {
+			await resetOnboarding();
+			window.dispatchEvent(new CustomEvent('hh:start-onboarding'));
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		} finally {
+			guideBusy = false;
 		}
 	}
 </script>
@@ -167,9 +189,17 @@
 		</form>
 
 		<div class="panel">
+			<h2>Getting started</h2>
+			<p class="muted">Replay the interactive tour of Questors, Quests, Bounties, and your Guild.</p>
+			<button type="button" class="secondary" disabled={guideBusy} onclick={replayGuide}>
+				{guideBusy ? 'Starting…' : 'Replay app guide'}
+			</button>
+		</div>
+
+		<div class="panel">
 			<h2>Notifications</h2>
 			<p class="muted">
-				Install HeroHabbits as an app (Add to Home Screen) for the best push experience on phones.
+				Install Hero Habits as an app (Add to Home Screen) for the best push experience on phones.
 			</p>
 			{#if pushSupported()}
 				<button type="button" class="secondary" disabled={pushBusy} onclick={enablePush}>
@@ -184,8 +214,10 @@
 				<a href={resolve('/terms/')}>Terms</a>
 				·
 				<a href={resolve('/feedback/')}>Feedback</a>
-				·
-				<a href={resolve('/billing/')}>Billing</a>
+				{#if pricingEnabled}
+					·
+					<a href={resolve('/billing/')}>Billing</a>
+				{/if}
 			</p>
 		</div>
 	{/if}

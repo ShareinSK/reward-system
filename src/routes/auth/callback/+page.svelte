@@ -67,7 +67,7 @@
 </script>
 
 <section class="page">
-	<p class="eyebrow">HeroHabbits</p>
+	<p class="eyebrow">Hero Habits</p>
 	<h1>{status}</h1>
 	{#if error}
 		<p class="alert">{error}</p>
