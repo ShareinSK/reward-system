@@ -40,12 +40,16 @@ export type PointsLedgerEntry = {
 	created_at: string;
 };
 
+export type ExperienceMode = 'kids' | 'goals';
+
 export type Household = {
 	id: string;
 	name: string;
 	invite_code: string;
 	allow_negative_points: boolean;
 	allow_decimal_points: boolean;
+	experience_mode: ExperienceMode;
+	disabled: boolean;
 	created_by: string | null;
 	created_at: string;
 };
@@ -68,6 +72,60 @@ export type HouseholdMember = {
 	display_name: string;
 };
 
+export type PlanId = 'free' | 'trial' | 'pro';
+
+export type PlanLimits = {
+	max_members: number;
+	max_participants: number;
+	max_activities: number;
+	max_rewards: number;
+	plan: PlanId | string;
+};
+
+export type HouseholdEntitlement = {
+	household_id: string;
+	plan: PlanId;
+	status: string;
+	trial_ends_at: string | null;
+	current_period_end: string | null;
+	stripe_customer_id: string | null;
+	stripe_subscription_id: string | null;
+	admin_override: boolean;
+	admin_notes: string | null;
+	updated_at: string;
+	created_at: string;
+};
+
+export type AppRole = 'user' | 'admin' | 'super_admin';
+
+export type Profile = {
+	id: string;
+	display_name: string;
+	active_household_id: string | null;
+	app_role: AppRole;
+	is_test: boolean;
+	email_opt_in: boolean;
+	push_opt_in: boolean;
+	last_active_at: string | null;
+};
+
+export type FeatureFlag = {
+	key: string;
+	description: string;
+	enabled: boolean;
+	rollout: 'off' | 'on' | 'allowlist';
+};
+
+export type PlanPrice = {
+	id: string;
+	country_or_region: string;
+	currency: string;
+	stripe_price_id: string | null;
+	amount_display: string;
+	interval: string;
+	active: boolean;
+};
+
 export type AiLogPreview = {
 	participant_id: string;
 	activity_id: string;
@@ -76,3 +134,19 @@ export type AiLogPreview = {
 
 export type ParticipantMeta = Pick<Participant, 'id' | 'name'>;
 export type ActivityMeta = Pick<Activity, 'id' | 'title' | 'default_points' | 'allow_negative'>;
+
+export const FREE_LIMITS: PlanLimits = {
+	max_members: 1,
+	max_participants: 2,
+	max_activities: 5,
+	max_rewards: 3,
+	plan: 'free'
+};
+
+export const PRO_LIMITS: PlanLimits = {
+	max_members: 3,
+	max_participants: 10,
+	max_activities: 50,
+	max_rewards: 20,
+	plan: 'pro'
+};

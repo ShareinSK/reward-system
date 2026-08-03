@@ -25,7 +25,13 @@ export function getSupabase(): SupabaseClient {
 	const configError = getSupabaseConfigError();
 	if (configError) throw new Error(configError);
 	const { url, anonKey } = readConfig();
-	client = createClient(url, anonKey);
+	client = createClient(url, anonKey, {
+		auth: {
+			detectSessionInUrl: true,
+			persistSession: true,
+			flowType: 'pkce'
+		}
+	});
 	return client;
 }
 

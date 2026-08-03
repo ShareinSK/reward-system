@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { parsePlanLimitError } from '$lib/entitlements';
 	import { joinHouseholdByCode } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import { supabase } from '$lib/supabase';
@@ -38,10 +39,17 @@
 		try {
 			const hid = await joinHouseholdByCode(code);
 			setActiveHouseholdId(hid);
-			success = 'Joined! You can now manage this group’s rewards.';
+			success = 'Joined! You can now manage this guild’s bounties.';
 			setTimeout(() => goto(resolve('/dashboard/'), { replaceState: true }), 700);
 		} catch (err) {
-			error = err instanceof Error ? err.message : String(err);
+			const msg = err instanceof Error ? err.message : String(err);
+			const planErr = parsePlanLimitError(msg);
+			if (planErr?.resource === 'members') {
+				const noun = planErr.limit === 1 ? 'guild mate' : 'guild mates';
+				error = `Free plan allows ${planErr.limit} ${noun}. Upgrade to Pro to invite more guild mates.`;
+			} else {
+				error = planErr?.message ?? msg;
+			}
 		} finally {
 			loading = false;
 		}
@@ -50,10 +58,10 @@
 
 <section class="page">
 	<header>
-		<p class="eyebrow">Sharing</p>
-		<h1>Join a group</h1>
+		<p class="eyebrow">Guild</p>
+		<h1>Join a guild</h1>
 		<p class="lede">
-			Enter the invite code from another manager to share the same reward system.
+			Enter the invite code from another guild mate to share the same bounty system.
 		</p>
 	</header>
 
@@ -71,7 +79,7 @@
 		{/if}
 
 		<button type="submit" disabled={loading}>
-			{loading ? 'Joining…' : 'Join group'}
+			{loading ? 'Joining…' : 'Join guild'}
 		</button>
 	</form>
 </section>

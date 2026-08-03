@@ -34,13 +34,13 @@ export function pointsStep(allowDecimals: boolean): string {
 
 export function pointsInputHint(settings: HouseholdSettings): string | null {
 	if (!settings.allow_decimal_points && !settings.allow_negative_points) {
-		return 'Whole numbers only. Negative points are turned off in Settings.';
+		return 'Whole numbers only. Negative XP is turned off in Guild Stats.';
 	}
 	if (!settings.allow_decimal_points) {
-		return 'Whole numbers only. Change this in Settings.';
+		return 'Whole numbers only. Change this in Guild Stats.';
 	}
 	if (!settings.allow_negative_points) {
-		return 'Negative points are turned off in Settings.';
+		return 'Negative XP is turned off in Guild Stats.';
 	}
 	return null;
 }

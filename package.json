@@ -1,5 +1,5 @@
 {
-	"name": "reward-app",
+	"name": "herohabbits",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"icons": "node scripts/gen-pwa-icons.mjs"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^3.0.10",
@@ -17,6 +18,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/three": "^0.185.1",
+		"@vite-pwa/sveltekit": "^1.1.0",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.6.0",
 		"tailwindcss": "^4.3.0",
@@ -27,6 +29,8 @@
 		"@supabase/supabase-js": "^2.110.3",
 		"@threlte/core": "^8.0.0-next.41",
 		"@threlte/extras": "^9.0.0-next.55",
-		"three": "^0.185.1"
+		"three": "^0.185.1",
+		"workbox-core": "^7.4.1",
+		"workbox-precaching": "^7.4.1"
 	}
 }

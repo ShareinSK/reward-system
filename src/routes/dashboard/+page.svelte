@@ -174,33 +174,33 @@
 		allocateSuccess = '';
 
 		if (!selectedActivity) {
-			error = 'Choose an activity first.';
+			error = 'Choose a quest first.';
 			return;
 		}
 		if (!checkedParticipants.length) {
-			error = 'Check at least one participant.';
+			error = 'Check at least one questor.';
 			return;
 		}
 
 		const points = normalizePoints(Number(allocatePoints), settings);
 		if (Number.isNaN(points) || points === 0) {
 			error = settings.allow_negative_points
-				? 'Points must be a non-zero number.'
-				: 'Points must be a positive whole number (negatives are off in Settings).';
+				? 'XP must be a non-zero number.'
+				: 'XP must be a positive whole number (negatives are off in Guild Stats).';
 			return;
 		}
 		if (points < 0 && !settings.allow_negative_points) {
-			error = 'Negative points are turned off in Settings.';
+			error = 'Negative XP is turned off in Guild Stats.';
 			return;
 		}
 		if (points < 0 && !selectedActivity.allow_negative) {
-			error = `"${selectedActivity.title}" does not allow negative points.`;
+			error = `"${selectedActivity.title}" does not allow negative XP.`;
 			return;
 		}
 
 		saving = true;
 		try {
-			const note = allocateNote.trim() || `Allocated for ${selectedActivity.title}`;
+			const note = allocateNote.trim() || `Awarded for ${selectedActivity.title}`;
 			await Promise.all(
 				checkedParticipants.map((p) =>
 					insertLedgerEntry({
@@ -211,7 +211,7 @@
 					})
 				)
 			);
-			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} pts to ${checkedParticipants.length} participant${checkedParticipants.length === 1 ? '' : 's'}.`;
+			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} XP to ${checkedParticipants.length} questor${checkedParticipants.length === 1 ? '' : 's'}.`;
 			allocateNote = '';
 			toggleAll(false);
 			await refreshLedger();
@@ -265,13 +265,13 @@
 			const activity = activities.find((a) => a.id === aiPreview!.activity_id);
 			const points = normalizePoints(aiPreview.points, settings);
 			if (Number.isNaN(points) || points === 0) {
-				throw new Error('Points must be a non-zero number under current Settings.');
+				throw new Error('XP must be a non-zero number under current Guild Stats.');
 			}
 			if (points < 0 && !settings.allow_negative_points) {
-				throw new Error('Negative points are turned off in Settings.');
+				throw new Error('Negative XP is turned off in Guild Stats.');
 			}
 			if (points < 0 && !activity?.allow_negative) {
-				throw new Error('This activity does not allow negative points.');
+				throw new Error('This quest does not allow negative XP.');
 			}
 			await insertLedgerEntry({
 				participant_id: aiPreview.participant_id,
@@ -293,16 +293,16 @@
 <section class="dash">
 	<header class="dash__header">
 		<div>
-			<p class="eyebrow">Dashboard</p>
-			<h1>Leaderboard</h1>
-			<p class="lede">Tap someone to see their vault, rewards, and full history.</p>
+			<p class="eyebrow">Quest Log</p>
+			<h1>Guild Standings</h1>
+			<p class="lede">Tap a questor to see their vault, bounties, and full history.</p>
 		</div>
 	</header>
 
 	{#if loading}
-		<p class="muted">Loading dashboard…</p>
+		<p class="muted">Loading quest log…</p>
 	{:else if !participants.length}
-		<p class="muted">Add participants, activities, and rewards from the nav to get started.</p>
+		<p class="muted">Add questors, quests, and bounties from the nav to get started.</p>
 	{:else}
 		{#if error}
 			<p class="alert" role="alert">{error}</p>
@@ -338,12 +338,12 @@
 								<span class="board-row__main">
 									<strong>{row.participant.name}</strong>
 									<span class="muted"
-										>Today {formatPoints(row.daily, settings.allow_decimal_points)} · Week
-										{formatPoints(row.weekly, settings.allow_decimal_points)}</span
+										>Today {formatPoints(row.daily, settings.allow_decimal_points)} XP · Week
+										{formatPoints(row.weekly, settings.allow_decimal_points)} XP</span
 									>
 								</span>
 								<span class="board-row__score"
-									>{formatPoints(row.balance, settings.allow_decimal_points)}</span
+									>{formatPoints(row.balance, settings.allow_decimal_points)} XP</span
 								>
 								<span class="board-row__chevron" aria-hidden="true">→</span>
 							</button>
@@ -353,26 +353,26 @@
 			</div>
 
 			<form class="panel" onsubmit={allocateToSelected}>
-				<h2>Allocate points</h2>
+				<h2>Award XP</h2>
 				<p class="panel__lede">
-					Pick an activity, set points, then check who should receive them.
+					Pick a quest, set XP, then check which questors should receive it.
 				</p>
 
 				<label class="field">
-					<span>Activity</span>
+					<span>Quest</span>
 					<select bind:value={selectedActivityId} onchange={onActivityChange} required>
 						{#each activities as a (a.id)}
 							<option value={a.id}>
-								{a.title} ({formatPoints(Number(a.default_points), settings.allow_decimal_points)} pts{#if settings.allow_negative_points && a.allow_negative}, ±{/if})
+								{a.title} ({formatPoints(Number(a.default_points), settings.allow_decimal_points)} XP{#if settings.allow_negative_points && a.allow_negative}, ±{/if})
 							</option>
 						{:else}
-							<option value="" disabled>No activities yet</option>
+							<option value="" disabled>No quests yet</option>
 						{/each}
 					</select>
 				</label>
 
 				<label class="field">
-					<span>Points</span>
+					<span>XP</span>
 					<input
 						bind:value={allocatePoints}
 						type="number"
@@ -383,13 +383,13 @@
 					{#if inputHint}
 						<span class="hint">{inputHint}</span>
 					{:else if selectedActivity && !selectedActivity.allow_negative}
-						<span class="hint">Negative values are blocked for this activity.</span>
+						<span class="hint">Negative values are blocked for this quest.</span>
 					{/if}
 				</label>
 
 				<div class="field">
 					<div class="check-head">
-						<span>Participants</span>
+						<span>Questors</span>
 						<button type="button" class="link" onclick={() => toggleAll(!allSelected)}>
 							{allSelected ? 'Clear all' : 'Select all'}
 						</button>
@@ -419,18 +419,20 @@
 				>
 					{saving
 						? 'Saving…'
-						: `Allocate to ${checkedParticipants.length || 0} selected`}
+						: `Award XP to ${checkedParticipants.length || 0} selected`}
 				</button>
 			</form>
 		</div>
 
 		<details class="ai-promo">
 			<summary>
-				<span class="ai-promo__eyebrow">Optional</span>
-				<span class="ai-promo__title">Please try our AI capability</span>
+				<span class="ai-promo__eyebrow">
+					Optional · <span class="ai-promo__badge">Beta</span>
+				</span>
+				<span class="ai-promo__title">AI quest log helper</span>
 				<span class="ai-promo__lede">
-					Describe a points event in plain English — we’ll propose a ledger entry for you to
-					confirm.
+					Experimental — results may be wrong. Always review before confirming. Describe an XP
+					event in plain English and we’ll propose a ledger entry.
 				</span>
 			</summary>
 
@@ -438,12 +440,12 @@
 				<textarea
 					bind:value={aiText}
 					rows="3"
-					placeholder="Gave Alex 2.5 points for finishing early"
+					placeholder="Gave Alex 2.5 XP for finishing early"
 				></textarea>
 
 				<div class="row">
 					<button type="button" class="btn btn--ghost" disabled={aiLoading} onclick={runAiParse}>
-						{aiLoading ? 'Parsing…' : 'Parse with AI'}
+						{aiLoading ? 'Parsing…' : 'Parse with AI (Beta)'}
 					</button>
 					{#if aiPreview}
 						<button type="button" class="btn btn--ghost" onclick={() => (aiPreview = null)}>
@@ -458,18 +460,18 @@
 
 				{#if aiPreview}
 					<div class="preview" aria-live="polite">
-						<p class="preview__title">Confirm before saving</p>
+						<p class="preview__title">Review carefully before saving (Beta)</p>
 						<ul>
 							<li>
-								Participant:
+								Questor:
 								<strong>{previewParticipant?.name ?? aiPreview.participant_id}</strong>
 							</li>
 							<li>
-								Activity:
+								Quest:
 								<strong>{previewActivity?.title ?? aiPreview.activity_id}</strong>
 							</li>
 							<li>
-								Points:
+								XP:
 								<strong
 									>{formatPoints(aiPreview.points, settings.allow_decimal_points, {
 										signed: true
@@ -886,6 +888,20 @@
 		text-transform: uppercase;
 		color: var(--text-soft);
 		font-family: var(--font-display);
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+
+	.ai-promo__badge {
+		letter-spacing: 0.08em;
+		padding: 0.15rem 0.45rem;
+		border-radius: 999px;
+		background: rgba(245, 158, 11, 0.2);
+		color: #b45309;
+		border: 1px solid rgba(245, 158, 11, 0.45);
+		font-size: 0.65rem;
+		font-weight: 700;
 	}
 
 	.ai-promo__title {

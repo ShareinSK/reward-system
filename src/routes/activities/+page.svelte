@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { fetchActivities } from '$lib/api';
-	import { ensureHouseholdId, fetchHouseholdSettings } from '$lib/household';
+	import UpgradeBanner from '$lib/components/UpgradeBanner.svelte';
+	import { fetchPlanLimits, isAtCap, parsePlanLimitError } from '$lib/entitlements';
+	import { copyFor } from '$lib/experience';
+	import { isFeatureEnabled } from '$lib/featureFlags';
+	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
 		formatPoints,
@@ -9,8 +13,8 @@
 		settingsFromHousehold
 	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { Activity, HouseholdSettings } from '$lib/types';
-	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
+	import type { Activity, ExperienceMode, HouseholdSettings, PlanLimits } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS, FREE_LIMITS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
@@ -21,8 +25,14 @@
 	let allowNegative = $state(false);
 	let error = $state('');
 	let loading = $state(true);
+	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
+	let mode = $state<ExperienceMode>('kids');
+	let billingEnabled = $state(false);
 
 	const step = $derived(pointsStep(settings.allow_decimal_points));
+	const atCap = $derived(isAtCap(activities.length, limits.max_activities));
+	const label = $derived(copyFor(mode, 'activity'));
+	const labelPlural = $derived(copyFor(mode, 'activities'));
 
 	async function load() {
 		loading = true;
@@ -36,9 +46,17 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [list, s] = await Promise.all([fetchActivities(), fetchHouseholdSettings(hid)]);
+			const [list, household, lim, billing] = await Promise.all([
+				fetchActivities(),
+				fetchHousehold(hid),
+				fetchPlanLimits(hid),
+				isFeatureEnabled('billing_checkout', hid)
+			]);
 			activities = list;
-			settings = settingsFromHousehold(s);
+			settings = settingsFromHousehold(household);
+			limits = lim;
+			mode = household.experience_mode;
+			billingEnabled = billing;
 			if (!settings.allow_negative_points) allowNegative = false;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
@@ -54,12 +72,16 @@
 	async function addActivity(e: Event) {
 		e.preventDefault();
 		error = '';
+		if (atCap) {
+			error = `Free plan allows ${limits.max_activities} ${labelPlural.toLowerCase()}.`;
+			return;
+		}
 		const points = normalizePoints(Number(defaultPoints), {
 			...settings,
 			allow_negative_points: true // defaults can be positive-only via min; allow normalize rounding
 		});
 		if (Number.isNaN(points) || points === 0) {
-			error = 'Default points must be a non-zero number.';
+			error = 'Default XP must be a non-zero number.';
 			return;
 		}
 		const {
@@ -75,7 +97,8 @@
 			household_id
 		});
 		if (insertError) {
-			error = insertError.message;
+			const planErr = parsePlanLimitError(insertError.message);
+			error = planErr?.message ?? insertError.message;
 			return;
 		}
 		title = '';
@@ -96,33 +119,40 @@
 
 <section class="page">
 	<header>
-		<p class="eyebrow">Master lists</p>
-		<h1>Activities</h1>
+		<p class="eyebrow">Guild lists</p>
+		<h1>{labelPlural}</h1>
+		<p class="cap-hint">{activities.length} / {limits.max_activities} on {limits.plan}</p>
 		<p class="lede">
-			Scoring rules follow <a href={resolve('/settings/')}>Settings</a>
+			Scoring rules follow <a href={resolve('/settings/')}>Guild Stats</a>
 			{#if !settings.allow_decimal_points}
 				· whole numbers only
 			{/if}
 		</p>
 	</header>
 
-	<form class="form" onsubmit={addActivity}>
-		<label>
-			<span>Title</span>
-			<input bind:value={title} required placeholder="Completed project milestone" />
-		</label>
-		<label>
-			<span>Default points</span>
-			<input bind:value={defaultPoints} type="number" step={step} min="1" required />
-		</label>
-		{#if settings.allow_negative_points}
-			<label class="check">
-				<input bind:checked={allowNegative} type="checkbox" />
-				<span>Allow negative</span>
+	{#if atCap}
+		<UpgradeBanner resource={labelPlural.toLowerCase()} limit={limits.max_activities} {billingEnabled} />
+	{/if}
+
+	{#if !atCap}
+		<form class="form" onsubmit={addActivity}>
+			<label>
+				<span>Title</span>
+				<input bind:value={title} required placeholder="Completed project milestone" />
 			</label>
-		{/if}
-		<button type="submit">Add</button>
-	</form>
+			<label>
+				<span>Default XP</span>
+				<input bind:value={defaultPoints} type="number" step={step} min="1" required />
+			</label>
+			{#if settings.allow_negative_points}
+				<label class="check">
+					<input bind:checked={allowNegative} type="checkbox" />
+					<span>Allow negative</span>
+				</label>
+			{/if}
+			<button type="submit">Add {label}</button>
+		</form>
+	{/if}
 
 	{#if error}
 		<p class="alert">{error}</p>
@@ -137,14 +167,14 @@
 					<div>
 						<strong>{a.title}</strong>
 						<span class="muted"
-							>{formatPoints(Number(a.default_points), settings.allow_decimal_points)} pts
+							>{formatPoints(Number(a.default_points), settings.allow_decimal_points)} XP
 							{#if settings.allow_negative_points && a.allow_negative}· negatives OK{/if}</span
 						>
 					</div>
 					<button type="button" onclick={() => removeActivity(a.id)}>Remove</button>
 				</li>
 			{:else}
-				<li class="muted">No activities yet.</li>
+				<li class="muted">No {labelPlural.toLowerCase()} yet.</li>
 			{/each}
 		</ul>
 	{/if}
@@ -167,6 +197,12 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	.cap-hint {
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+		text-transform: capitalize;
 	}
 	.lede {
 		margin: 0.35rem 0 0;

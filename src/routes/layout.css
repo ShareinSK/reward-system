@@ -1,8 +1,10 @@
 @import 'tailwindcss';
 
-:root {
+:root,
+.theme-kids {
 	--bg-0: #f4f6ff;
 	--bg-1: #eaeefe;
+	--bg-2: #dde4ff;
 	--surface: rgba(255, 255, 255, 0.92);
 	--surface-solid: #ffffff;
 	--surface-strong: #ffffff;
@@ -23,4 +25,30 @@
 	--shadow: 0 14px 30px rgba(99, 102, 241, 0.08);
 	--font-display: 'Fredoka', 'Nunito', 'Outfit', system-ui, sans-serif;
 	--font-body: 'Outfit', system-ui, sans-serif;
+}
+
+.theme-goals {
+	--bg-0: #f3f7f6;
+	--bg-1: #e7f0ee;
+	--bg-2: #d5e6e2;
+	--surface: rgba(255, 255, 255, 0.94);
+	--surface-solid: #ffffff;
+	--surface-strong: #ffffff;
+	--border: rgba(15, 118, 110, 0.16);
+	--border-strong: rgba(15, 118, 110, 0.32);
+	--text: #134e4a;
+	--text-muted: #3f5f5b;
+	--text-soft: #5b7874;
+	--accent: #0f766e;
+	--accent-bright: #0d9488;
+	--accent-ink: #ffffff;
+	--amber: #c2410c;
+	--amber-soft: #ea580c;
+	--danger-bg: #fee2e2;
+	--danger-text: #dc2626;
+	--ok-bg: #dcfce7;
+	--ok-text: #15803d;
+	--shadow: 0 14px 30px rgba(15, 118, 110, 0.08);
+	--font-display: 'Fraunces', 'Source Sans 3', Georgia, serif;
+	--font-body: 'Source Sans 3', system-ui, sans-serif;
 }

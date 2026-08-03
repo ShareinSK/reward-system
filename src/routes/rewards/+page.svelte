@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { fetchGrandRewards } from '$lib/api';
-	import { ensureHouseholdId, fetchHouseholdSettings } from '$lib/household';
+	import UpgradeBanner from '$lib/components/UpgradeBanner.svelte';
+	import { fetchPlanLimits, isAtCap, parsePlanLimitError } from '$lib/entitlements';
+	import { copyFor } from '$lib/experience';
+	import { isFeatureEnabled } from '$lib/featureFlags';
+	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
 		formatPoints,
@@ -9,8 +13,8 @@
 		settingsFromHousehold
 	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { GrandReward, HouseholdSettings } from '$lib/types';
-	import { DEFAULT_HOUSEHOLD_SETTINGS } from '$lib/types';
+	import type { ExperienceMode, GrandReward, HouseholdSettings, PlanLimits } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS, FREE_LIMITS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
@@ -21,8 +25,14 @@
 	let description = $state('');
 	let error = $state('');
 	let loading = $state(true);
+	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
+	let mode = $state<ExperienceMode>('kids');
+	let billingEnabled = $state(false);
 
 	const step = $derived(pointsStep(settings.allow_decimal_points));
+	const atCap = $derived(isAtCap(rewards.length, limits.max_rewards));
+	const label = $derived(copyFor(mode, 'reward'));
+	const labelPlural = $derived(copyFor(mode, 'rewards'));
 
 	async function load() {
 		loading = true;
@@ -36,9 +46,17 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [list, s] = await Promise.all([fetchGrandRewards(), fetchHouseholdSettings(hid)]);
+			const [list, household, lim, billing] = await Promise.all([
+				fetchGrandRewards(),
+				fetchHousehold(hid),
+				fetchPlanLimits(hid),
+				isFeatureEnabled('billing_checkout', hid)
+			]);
 			rewards = list;
-			settings = settingsFromHousehold(s);
+			settings = settingsFromHousehold(household);
+			limits = lim;
+			mode = household.experience_mode;
+			billingEnabled = billing;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -53,12 +71,16 @@
 	async function addReward(e: Event) {
 		e.preventDefault();
 		error = '';
+		if (atCap) {
+			error = `Free plan allows ${limits.max_rewards} ${labelPlural.toLowerCase()}.`;
+			return;
+		}
 		const required = normalizePoints(Number(pointsRequired), {
 			allow_decimal_points: settings.allow_decimal_points,
 			allow_negative_points: true
 		});
 		if (Number.isNaN(required) || required <= 0) {
-			error = 'Points required must be greater than zero.';
+			error = 'XP required must be greater than zero.';
 			return;
 		}
 		const {
@@ -74,7 +96,8 @@
 			household_id
 		});
 		if (insertError) {
-			error = insertError.message;
+			const planErr = parsePlanLimitError(insertError.message);
+			error = planErr?.message ?? insertError.message;
 			return;
 		}
 		title = '';
@@ -95,31 +118,38 @@
 
 <section class="page">
 	<header>
-		<p class="eyebrow">Master lists</p>
-		<h1>Grand Rewards</h1>
+		<p class="eyebrow">Guild lists</p>
+		<h1>{labelPlural}</h1>
+		<p class="cap-hint">{rewards.length} / {limits.max_rewards} on {limits.plan}</p>
 		<p class="lede">
-			Point totals follow <a href={resolve('/settings/')}>Settings</a>
+			XP totals follow <a href={resolve('/settings/')}>Guild Stats</a>
 			{#if !settings.allow_decimal_points}
 				· whole numbers only
 			{/if}
 		</p>
 	</header>
 
-	<form class="form" onsubmit={addReward}>
-		<label>
-			<span>Title</span>
-			<input bind:value={title} required placeholder="Movie night" />
-		</label>
-		<label>
-			<span>Points required</span>
-			<input bind:value={pointsRequired} type="number" step={step} min="1" required />
-		</label>
-		<label class="grow">
-			<span>Description</span>
-			<input bind:value={description} placeholder="Optional details" />
-		</label>
-		<button type="submit">Add</button>
-	</form>
+	{#if atCap}
+		<UpgradeBanner resource={labelPlural.toLowerCase()} limit={limits.max_rewards} {billingEnabled} />
+	{/if}
+
+	{#if !atCap}
+		<form class="form" onsubmit={addReward}>
+			<label>
+				<span>Title</span>
+				<input bind:value={title} required placeholder="Movie night" />
+			</label>
+			<label>
+				<span>XP required</span>
+				<input bind:value={pointsRequired} type="number" step={step} min="1" required />
+			</label>
+			<label class="grow">
+				<span>Description</span>
+				<input bind:value={description} placeholder="Optional details" />
+			</label>
+			<button type="submit">Add {label}</button>
+		</form>
+	{/if}
 
 	{#if error}
 		<p class="alert">{error}</p>
@@ -134,7 +164,7 @@
 					<div>
 						<strong>{r.title}</strong>
 						<span class="muted"
-							>{formatPoints(Number(r.points_required), settings.allow_decimal_points)} pts</span
+							>{formatPoints(Number(r.points_required), settings.allow_decimal_points)} XP</span
 						>
 						{#if r.description}
 							<p>{r.description}</p>
@@ -143,7 +173,7 @@
 					<button type="button" onclick={() => removeReward(r.id)}>Remove</button>
 				</li>
 			{:else}
-				<li class="muted">No grand rewards yet.</li>
+				<li class="muted">No {labelPlural.toLowerCase()} yet.</li>
 			{/each}
 		</ul>
 	{/if}
@@ -166,6 +196,12 @@
 		margin: 0.2rem 0 0;
 		font-family: var(--font-display);
 		color: var(--text);
+	}
+	.cap-hint {
+		margin: 0.25rem 0 0;
+		font-size: 0.85rem;
+		color: var(--text-soft);
+		text-transform: capitalize;
 	}
 	.lede {
 		margin: 0.35rem 0 0;

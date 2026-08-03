@@ -95,7 +95,7 @@ export async function claimGrandReward(
 		participant_id: participantId,
 		grand_reward_id: reward.id,
 		points: -Number(reward.points_required),
-		note: `Claimed: ${reward.title}`
+		note: `Claimed bounty: ${reward.title}`
 	});
 }
 
