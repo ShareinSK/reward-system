@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { base, resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.svg';
+	import logoIcon from '$lib/assets/logo-app.png';
+	import logoWordmark from '$lib/assets/word-mark.svg';
 	import { copyFor, navLabels } from '$lib/experience';
 	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
@@ -132,8 +134,8 @@
 	{#if showChrome}
 		<header class="topbar">
 			<a class="brand" href={resolve('/dashboard/')}>
-				<span class="brand__mark" aria-hidden="true"></span>
-				<span class="brand__name">HeroHabbits</span>
+				<img class="brand__icon" src={logoIcon} alt="" width="64" height="64" />
+				<img class="brand__wordmark" src={logoWordmark} alt="HeroHabbits" width="240" height="65" />
 			</a>
 
 			<nav class="top-nav" aria-label="Primary">
@@ -259,24 +261,26 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.75rem;
-		padding: 0.75rem 1rem;
+		padding: 0.65rem 1rem;
 		border-bottom: 1px solid var(--border);
 		background: color-mix(in srgb, var(--bg-0) 90%, white);
 		backdrop-filter: blur(10px);
 		position: sticky;
 		top: 0;
 		z-index: 20;
+		min-height: 4.25rem;
 	}
 
 	@media (min-width: 640px) {
 		.topbar {
-			padding: 0.9rem 1.5rem;
+			padding: 0.75rem 1.5rem;
+			min-height: 4.75rem;
 		}
 	}
 
 	@media (min-width: 768px) {
 		.topbar {
-			padding: 0.9rem clamp(1rem, 3vw, 2rem);
+			padding: 0.65rem clamp(1rem, 3vw, 2rem);
 		}
 
 		.app-shell--nav {
@@ -292,20 +296,44 @@
 		color: var(--text);
 		margin-right: auto;
 		min-height: 44px;
+		padding: 0.15rem 0.35rem 0.15rem 0.15rem;
+		border-radius: 0.85rem;
 	}
 
-	.brand__mark {
-		width: 0.95rem;
-		height: 0.95rem;
-		border-radius: 0.35rem;
-		background: linear-gradient(135deg, var(--accent), var(--amber));
-		box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
+	.brand__icon {
+		display: block;
+		width: 3rem;
+		height: 3rem;
+		border-radius: 0.7rem;
+		object-fit: cover;
+		flex-shrink: 0;
+		box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 18%, transparent);
 	}
 
-	.brand__name {
-		font-family: var(--font-display);
-		font-weight: 700;
-		letter-spacing: -0.02em;
+	.brand__wordmark {
+		display: block;
+		height: 1.85rem;
+		width: auto;
+		max-width: min(48vw, 11rem);
+		object-fit: contain;
+		object-position: left center;
+	}
+
+	@media (min-width: 640px) {
+		.brand {
+			gap: 0.7rem;
+		}
+
+		.brand__icon {
+			width: 3.5rem;
+			height: 3.5rem;
+			border-radius: 0.85rem;
+		}
+
+		.brand__wordmark {
+			height: 2.35rem;
+			max-width: 14rem;
+		}
 	}
 
 	.top-nav {

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import logoWordmark from '$lib/assets/logo-wordmark.svg';
+	import logoIcon from '$lib/assets/logo-app.png';
+	import logoWordmark from '$lib/assets/word-mark.svg';
 	import { supabase } from '$lib/supabase';
 	import type { ExperienceMode } from '$lib/types';
 
@@ -105,7 +106,10 @@
 
 <form class="auth-card" onsubmit={submit}>
 	<div class="auth-card__brand">
-		<img class="wordmark" src={logoWordmark} alt="HeroHabbits" width="280" height="186" />
+		<div class="brand-lockup" aria-label="HeroHabbits">
+			<img class="brand-lockup__icon" src={logoIcon} alt="" width="72" height="72" />
+			<img class="brand-lockup__wordmark" src={logoWordmark} alt="HeroHabbits" width="280" height="76" />
+		</div>
 		<h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
 		<p class="lede">Complete quests, earn XP, and claim bounties with your guild.</p>
 	</div>
@@ -225,11 +229,32 @@
 		text-align: center;
 	}
 
-	.auth-card__brand .wordmark {
+	.brand-lockup {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		margin: 0 auto 0.5rem;
+		max-width: 100%;
+	}
+
+	.brand-lockup__icon {
 		display: block;
-		width: min(100%, 16rem);
-		height: auto;
-		margin: 0 auto 0.35rem;
+		width: 3.75rem;
+		height: 3.75rem;
+		border-radius: 0.9rem;
+		object-fit: cover;
+		flex-shrink: 0;
+		box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent);
+	}
+
+	.brand-lockup__wordmark {
+		display: block;
+		height: 2.5rem;
+		width: auto;
+		max-width: min(100%, 14rem);
+		object-fit: contain;
+		object-position: left center;
 	}
 
 	.auth-card__brand h1 {
