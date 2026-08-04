@@ -15,7 +15,7 @@ async function sendWebPush(
 ) {
 	const vapidPublic = Deno.env.get('VAPID_PUBLIC_KEY');
 	const vapidPrivate = Deno.env.get('VAPID_PRIVATE_KEY');
-	const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:feedback@herohabbits.app';
+	const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:feedback@questorlog.app';
 	if (!vapidPublic || !vapidPrivate) return { ok: false, reason: 'no_vapid' };
 
 	// Use web-push compatible approach via fetch to a small helper would be ideal;
@@ -34,7 +34,7 @@ async function sendWebPush(
 
 async function sendEmail(to: string, subject: string, body: string) {
 	const resendKey = Deno.env.get('RESEND_API_KEY');
-	const from = Deno.env.get('RESEND_FROM') || 'HeroHabbits <onboarding@resend.dev>';
+	const from = Deno.env.get('RESEND_FROM') || 'QuestorLog <onboarding@questorlog.app>';
 	if (!resendKey) return { ok: false, reason: 'no_resend' };
 	const res = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
 			for (const sub of (subs ?? []) as PushSub[]) {
 				try {
 					await sendWebPush(sub, {
-						title: template.subject || 'HeroHabbits',
+						title: template.subject || 'QuestorLog',
 						body: template.body,
 						url: '/billing/'
 					});
@@ -136,12 +136,12 @@ Deno.serve(async (req) => {
 		}
 
 		if (email && profile.email_opt_in) {
-			await sendEmail(email, template.subject || 'HeroHabbits', template.body);
+			await sendEmail(email, template.subject || 'QuestorLog', template.body);
 		}
 
 		await admin.from('in_app_notifications').insert({
 			user_id: owner.user_id,
-			title: template.subject || 'HeroHabbits',
+			title: template.subject || 'QuestorLog',
 			body: template.body,
 			href: '/billing/'
 		});
@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
 				for (const sub of (subs ?? []) as PushSub[]) {
 					try {
 						await sendWebPush(sub, {
-							title: 'HeroHabbits',
+							title: 'QuestorLog',
 							body: nudge.body,
 							url: '/dashboard/'
 						});

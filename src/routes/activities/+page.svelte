@@ -28,6 +28,7 @@
 	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
 	let mode = $state<ExperienceMode>('kids');
 	let billingEnabled = $state(false);
+	let pricingEnabled = $state(false);
 
 	const step = $derived(pointsStep(settings.allow_decimal_points));
 	const atCap = $derived(isAtCap(activities.length, limits.max_activities));
@@ -46,17 +47,19 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [list, household, lim, billing] = await Promise.all([
+			const [list, household, lim, billing, pricing] = await Promise.all([
 				fetchActivities(),
 				fetchHousehold(hid),
 				fetchPlanLimits(hid),
-				isFeatureEnabled('billing_checkout', hid)
+				isFeatureEnabled('billing_checkout', hid),
+				isFeatureEnabled('billing_pricing', hid)
 			]);
 			activities = list;
 			settings = settingsFromHousehold(household);
 			limits = lim;
 			mode = household.experience_mode;
 			billingEnabled = billing;
+			pricingEnabled = pricing;
 			if (!settings.allow_negative_points) allowNegative = false;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
@@ -131,7 +134,12 @@
 	</header>
 
 	{#if atCap}
-		<UpgradeBanner resource={labelPlural.toLowerCase()} limit={limits.max_activities} {billingEnabled} />
+		<UpgradeBanner
+			resource={labelPlural.toLowerCase()}
+			limit={limits.max_activities}
+			{billingEnabled}
+			{pricingEnabled}
+		/>
 	{/if}
 
 	{#if !atCap}

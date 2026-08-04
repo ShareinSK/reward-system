@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { fetchFeatureFlags } from '$lib/featureFlags';
+	import { fetchFeatureFlags, flagLabel } from '$lib/featureFlags';
 	import { adminSetEntitlement, adminSetProfileFlags, fetchMyProfile, isStaffRole } from '$lib/profile';
 	import { supabase } from '$lib/supabase';
 	import type { AppRole, FeatureFlag, PlanPrice, Profile } from '$lib/types';
@@ -82,7 +82,7 @@
 			error = upError.message;
 			return;
 		}
-		notice = `Flag ${flag.key} updated.`;
+		notice = `${flagLabel(flag)} (${flag.key}) updated.`;
 		await load();
 	}
 
@@ -190,8 +190,11 @@
 				{#each flags as flag (flag.key)}
 					<li>
 						<div>
-							<strong>{flag.key}</strong>
-							<p class="muted">{flag.description}</p>
+							<strong>{flagLabel(flag)}</strong>
+							<p class="mono">{flag.key}</p>
+							{#if flag.description && flag.description !== flagLabel(flag)}
+								<p class="muted">{flag.description}</p>
+							{/if}
 							<p class="muted">rollout: {flag.rollout} · enabled: {String(flag.enabled)}</p>
 						</div>
 						<div class="row">
@@ -434,8 +437,8 @@
 
 	.mono {
 		font-family: ui-monospace, monospace;
-		font-size: 0.75rem;
-		color: var(--text-soft);
+		font-size: 0.8rem;
+		color: var(--text-muted);
 		word-break: break-all;
 		margin: 0.15rem 0 0;
 	}

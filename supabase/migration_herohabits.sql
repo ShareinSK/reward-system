@@ -1,4 +1,4 @@
--- HeroHabbits soft-launch + monetization foundation
+-- QuestorLog soft-launch + monetization foundation
 -- Run in Supabase SQL Editor after prior migrations.
 
 -- ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ alter table public.households
     check (experience_mode in ('kids', 'goals')),
   add column if not exists disabled boolean not null default false;
 
-update public.households set name = 'HeroHabbits' where name = 'Family Rewards';
+update public.households set name = 'QuestorLog' where name = 'Family Rewards';
 
 -- ---------------------------------------------------------------------------
 -- Entitlements (one row per household)
@@ -76,6 +76,7 @@ create unique index if not exists feature_flag_targets_hh_uidx
 insert into public.feature_flags (key, description, enabled, rollout) values
   ('goals_theme', 'Elegant goals / habit tracking UI', false, 'allowlist'),
   ('billing_checkout', 'Stripe checkout / upgrade enabled', false, 'off'),
+  ('billing_pricing', 'Show pricing details, plan comparison, and billing upgrade UI', false, 'off'),
   ('engagement_emails', 'Engagement email nudges', true, 'on'),
   ('engagement_push', 'Engagement web push nudges', true, 'on'),
   ('weekly_digest', 'Weekly progress digest', false, 'off')
@@ -126,12 +127,12 @@ create table if not exists public.notification_templates (
 );
 
 insert into public.notification_templates (key, channel, subject, body) values
-  ('trial_started', 'email', 'Your HeroHabbits Pro trial has started', 'You have 15 days of Pro. Invite co-managers and add more participants, activities, and goals.'),
-  ('trial_3d', 'email', '3 days left on your HeroHabbits trial', 'Your Pro trial ends in 3 days. Upgrade to keep higher limits.'),
-  ('trial_1d', 'email', '1 day left on your HeroHabbits trial', 'Tomorrow you move to the Free plan unless you upgrade.'),
-  ('trial_expired', 'email', 'Your HeroHabbits trial ended', 'You are now on Free. Existing data stays; new adds are limited until you upgrade.'),
-  ('inactive_nudge', 'push', null, 'Log today’s habits or award points in HeroHabbits.'),
-  ('feedback_ask', 'email', 'How is HeroHabbits going?', 'We would love your feedback while we soft-launch. Reply to this email or use the in-app feedback link.')
+  ('trial_started', 'email', 'Your QuestorLog Pro trial has started', 'You have 15 days of Pro. Invite co-managers and add more participants, activities, and goals.'),
+  ('trial_3d', 'email', '3 days left on your QuestorLog trial', 'Your Pro trial ends in 3 days. Upgrade to keep higher limits.'),
+  ('trial_1d', 'email', '1 day left on your QuestorLog trial', 'Tomorrow you move to the Free plan unless you upgrade.'),
+  ('trial_expired', 'email', 'Your QuestorLog trial ended', 'You are now on Free. Existing data stays; new adds are limited until you upgrade.'),
+  ('inactive_nudge', 'push', null, 'Log today’s habits or award points in QuestorLog.'),
+  ('feedback_ask', 'email', 'How is QuestorLog going?', 'We would love your feedback while we soft-launch. Reply to this email or use the in-app feedback link.')
 on conflict (key) do nothing;
 
 create table if not exists public.notification_log (
@@ -375,7 +376,7 @@ begin
 end;
 $$;
 
--- Ensure entitlements row when household is created
+-- Ensure entitlements row when household is created (15-day Pro trial by default)
 create or replace function public.ensure_household_entitlement()
 returns trigger
 language plpgsql
@@ -383,8 +384,8 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.household_entitlements (household_id, plan, status)
-  values (new.id, 'free', 'active')
+  insert into public.household_entitlements (household_id, plan, status, trial_ends_at)
+  values (new.id, 'trial', 'active', now() + interval '15 days')
   on conflict (household_id) do nothing;
   return new;
 end;
@@ -413,7 +414,7 @@ begin
 
   insert into public.households (name, invite_code, created_by, experience_mode)
   values (
-    'HeroHabbits',
+    'QuestorLog',
     public.generate_invite_code(),
     new.id,
     coalesce(nullif(new.raw_user_meta_data->>'experience_mode', ''), 'kids')
@@ -467,7 +468,7 @@ begin
   end if;
 
   insert into public.households (name, invite_code, created_by)
-  values ('HeroHabbits', public.generate_invite_code(), auth.uid())
+  values ('QuestorLog', public.generate_invite_code(), auth.uid())
   returning id into hid;
 
   insert into public.household_members (household_id, user_id, role)

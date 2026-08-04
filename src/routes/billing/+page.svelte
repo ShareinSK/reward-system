@@ -17,6 +17,7 @@
 	let memberCount = $state(0);
 	let prices = $state<PlanPrice[]>([]);
 	let billingEnabled = $state(false);
+	let pricingEnabled = $state(false);
 	let isOwner = $state(false);
 	let checkoutLoading = $state(false);
 
@@ -33,21 +34,33 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [ent, lim, members, household, billing, priceRows] = await Promise.all([
+			const [ent, lim, members, household, billing, pricing, priceRows] = await Promise.all([
 				fetchEntitlement(hid),
 				fetchPlanLimits(hid),
 				fetchHouseholdMembers(hid),
 				fetchHousehold(hid),
 				isFeatureEnabled('billing_checkout', hid),
+				isFeatureEnabled('billing_pricing', hid),
 				supabase.from('plan_prices').select('*').eq('active', true).order('country_or_region')
 			]);
 			entitlement = ent;
 			limits = lim;
 			memberCount = members.length;
 			billingEnabled = billing;
+			pricingEnabled = pricing;
 			prices = (priceRows.data ?? []) as PlanPrice[];
 			isOwner = members.some((m) => m.user_id === session.user.id && m.role === 'owner');
 			void household;
+
+			// Soft launch: if pricing is hidden and guild is still free, start trial quietly.
+			if (!pricing && isOwner && ent?.plan === 'free') {
+				try {
+					entitlement = await startTrial(15);
+					limits = await fetchPlanLimits(hid);
+				} catch {
+					// Trial may already be active or migration not applied
+				}
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -126,11 +139,18 @@
 <section class="page">
 	<header>
 		<p class="eyebrow">Plan</p>
-		<h1>Billing</h1>
-		<p class="lede">
-			Free includes 1 guild mate, 2 questors, 5 quests, and 3 bounties. Pro unlocks up to 3
-			guild mates, 10 questors, 50 quests, and 20 bounties.
-		</p>
+		<h1>{pricingEnabled ? 'Billing' : 'Your plan'}</h1>
+		{#if pricingEnabled}
+			<p class="lede">
+				Free includes 1 guild mate, 2 questors, 5 quests, and 3 bounties. Pro unlocks up to 3
+				guild mates, 10 questors, 50 quests, and 20 bounties.
+			</p>
+		{:else}
+			<p class="lede">
+				Your guild includes Pro limits during the soft-launch trial. Pricing will open later —
+				keep exploring and send feedback anytime.
+			</p>
+		{/if}
 	</header>
 
 	{#if loading}
@@ -157,67 +177,73 @@
 			</ul>
 		</div>
 
-		<div class="panel compare">
-			<div>
-				<h3>Free</h3>
-				<ul>
-					<li>{FREE_LIMITS.max_members} guild mate</li>
-					<li>{FREE_LIMITS.max_participants} questors</li>
-					<li>{FREE_LIMITS.max_activities} quests</li>
-					<li>{FREE_LIMITS.max_rewards} bounties</li>
-				</ul>
-			</div>
-			<div>
-				<h3>Pro</h3>
-				<ul>
-					<li>{PRO_LIMITS.max_members} guild mates</li>
-					<li>{PRO_LIMITS.max_participants} questors</li>
-					<li>{PRO_LIMITS.max_activities} quests</li>
-					<li>{PRO_LIMITS.max_rewards} bounties</li>
-				</ul>
-				{#if prices.length}
-					<p class="prices">
-						{#each prices as p}
-							<span>{p.country_or_region}: {p.amount_display}/{p.interval}</span>
-						{/each}
-					</p>
-				{:else}
-					<p class="muted">From $4.99 / ₹49 per month (by country).</p>
-				{/if}
-			</div>
-		</div>
-
-		{#if isOwner}
-			<div class="actions">
-				{#if billingEnabled}
-					{#if entitlement?.plan === 'pro' && entitlement.stripe_subscription_id}
-						<button type="button" onclick={openPortal}>Manage subscription</button>
+		{#if pricingEnabled}
+			<div class="panel compare">
+				<div>
+					<h3>Free</h3>
+					<ul>
+						<li>{FREE_LIMITS.max_members} guild mate</li>
+						<li>{FREE_LIMITS.max_participants} questors</li>
+						<li>{FREE_LIMITS.max_activities} quests</li>
+						<li>{FREE_LIMITS.max_rewards} bounties</li>
+					</ul>
+				</div>
+				<div>
+					<h3>Pro</h3>
+					<ul>
+						<li>{PRO_LIMITS.max_members} guild mates</li>
+						<li>{PRO_LIMITS.max_participants} questors</li>
+						<li>{PRO_LIMITS.max_activities} quests</li>
+						<li>{PRO_LIMITS.max_rewards} bounties</li>
+					</ul>
+					{#if prices.length}
+						<p class="prices">
+							{#each prices as p}
+								<span>{p.country_or_region}: {p.amount_display}/{p.interval}</span>
+							{/each}
+						</p>
 					{:else}
-						<button type="button" disabled={checkoutLoading} onclick={() => startCheckout('US')}>
-							{checkoutLoading ? 'Opening…' : 'Upgrade (US $4.99)'}
-						</button>
-						<button type="button" class="ghost" disabled={checkoutLoading} onclick={() => startCheckout('IN')}>
-							Upgrade (India ₹49)
-						</button>
-						{#if entitlement?.plan === 'free'}
-							<button type="button" class="ghost" onclick={beginTrial}>Start 15-day trial</button>
-						{/if}
+						<p class="muted">From $4.99 / ₹49 per month (by country).</p>
 					{/if}
-				{:else}
-					<p class="muted">
-						Paid Pro is coming soon. During soft launch, ask an admin if you need higher limits for
-						feedback.
-					</p>
-					{#if entitlement?.plan === 'free'}
-						<button type="button" class="ghost" onclick={beginTrial}>
-							Start 15-day Pro trial (preview)
-						</button>
-					{/if}
-					<a href={resolve('/feedback/')}>Send feedback</a>
-				{/if}
+				</div>
 			</div>
+
+			{#if isOwner}
+				<div class="actions">
+					{#if billingEnabled}
+						{#if entitlement?.plan === 'pro' && entitlement.stripe_subscription_id}
+							<button type="button" onclick={openPortal}>Manage subscription</button>
+						{:else}
+							<button type="button" disabled={checkoutLoading} onclick={() => startCheckout('US')}>
+								{checkoutLoading ? 'Opening…' : 'Upgrade (US $4.99)'}
+							</button>
+							<button type="button" class="ghost" disabled={checkoutLoading} onclick={() => startCheckout('IN')}>
+								Upgrade (India ₹49)
+							</button>
+							{#if entitlement?.plan === 'free'}
+								<button type="button" class="ghost" onclick={beginTrial}>Start 15-day trial</button>
+							{/if}
+						{/if}
+					{:else}
+						<p class="muted">
+							Paid Pro is coming soon. During soft launch, ask an admin if you need higher limits for
+							feedback.
+						</p>
+						{#if entitlement?.plan === 'free'}
+							<button type="button" class="ghost" onclick={beginTrial}>
+								Start 15-day Pro trial (preview)
+							</button>
+						{/if}
+						<a href={resolve('/feedback/')}>Send feedback</a>
+					{/if}
+				</div>
+			{:else}
+				<p class="muted">Only the guild owner can manage billing.</p>
+			{/if}
 		{:else}
-			<p class="muted">Only the guild owner can manage billing.</p>
+			<p class="muted">
+				<a href={resolve('/feedback/')}>Send feedback</a> if you need anything during the trial.
+			</p>
 		{/if}
 	{/if}
 </section>

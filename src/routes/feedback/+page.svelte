@@ -35,7 +35,7 @@
 				const body = encodeURIComponent(
 					`${message.trim()}\n\nFrom: ${payload.email ?? 'anonymous'}\nUser: ${payload.user_id ?? 'n/a'}`
 				);
-				window.location.href = `mailto:feedback@herohabbits.app?subject=HeroHabbits%20feedback&body=${body}`;
+				window.location.href = `mailto:feedback@questorlog.app?subject=${encodeURIComponent('QuestorLog feedback')}&body=${body}`;
 				sent = true;
 				return;
 			}
@@ -54,7 +54,7 @@
 		<p class="eyebrow">Community</p>
 		<h1>Feedback</h1>
 		<p class="lede">
-			We’re soft-launching HeroHabbits with a community. Tell us what works, what’s confusing, and
+			We’re soft-launching QuestorLog with a community. Tell us what works, what’s confusing, and
 			what limits feel too tight.
 		</p>
 	</header>

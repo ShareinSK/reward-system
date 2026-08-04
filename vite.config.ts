@@ -14,8 +14,8 @@ export default defineConfig({
 			injectRegister: 'auto',
 			registerType: 'autoUpdate',
 			manifest: {
-				name: 'HeroHabbits',
-				short_name: 'HeroHabbits',
+				name: 'QuestorLog',
+				short_name: 'QuestorLog',
 				description: 'Kids rewards and personal goal tracking for households.',
 				theme_color: '#6366f1',
 				background_color: '#f4f6ff',
