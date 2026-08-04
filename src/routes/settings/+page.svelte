@@ -199,7 +199,7 @@
 		<div class="panel">
 			<h2>Notifications</h2>
 			<p class="muted">
-				Install Hero Habits as an app (Add to Home Screen) for the best push experience on phones.
+				Install QuestorLog as an app (Add to Home Screen) for the best push experience on phones.
 			</p>
 			{#if pushSupported()}
 				<button type="button" class="secondary" disabled={pushBusy} onclick={enablePush}>

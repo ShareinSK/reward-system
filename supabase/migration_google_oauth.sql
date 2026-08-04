@@ -21,7 +21,7 @@ begin
 
   insert into public.households (name, invite_code, created_by, experience_mode)
   values (
-    'Hero Habits',
+    'QuestorLog',
     public.generate_invite_code(),
     new.id,
     coalesce(nullif(new.raw_user_meta_data->>'experience_mode', ''), 'kids')

@@ -8,7 +8,7 @@
 	<p class="muted">Last updated: August 2, 2026</p>
 
 	<p>
-		Hero Habits (“we”, “us”) provides a guild habit, bounty, and quest tracking service. This
+		QuestorLog (“we”, “us”) provides a guild habit, bounty, and quest tracking service. This
 		policy explains what we collect and how we use it.
 	</p>
 

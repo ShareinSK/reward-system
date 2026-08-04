@@ -3,8 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { base, resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.svg';
-	import logoIcon from '$lib/assets/logo-app.png';
-	import logoWordmark from '$lib/assets/word-mark.svg';
+	import logoNav from '$lib/assets/logo-with-text.svg';
 	import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
 	import { copyFor, navLabels } from '$lib/experience';
 	import { fetchEntitlement, startTrial } from '$lib/entitlements';
@@ -116,7 +115,8 @@
 			!path.startsWith('/privacy') &&
 			!path.startsWith('/terms') &&
 			!path.startsWith('/feedback') &&
-			!path.startsWith('/join')
+			!path.startsWith('/join') &&
+			!path.startsWith('/brand-preview')
 	);
 
 	async function signOut() {
@@ -164,7 +164,7 @@
 			rel="stylesheet"
 		/>
 	{/if}
-	<title>Hero Habits — Quest Log</title>
+	<title>QuestorLog — Quest Log</title>
 	<meta name="description" content={copyFor(experienceMode, 'tagline')} />
 	<meta name="theme-color" content={useGoalsUi ? '#0f766e' : '#6366f1'} />
 </svelte:head>
@@ -178,8 +178,7 @@
 	{#if showChrome}
 		<header class="topbar">
 			<a class="brand" href={resolve('/dashboard/')}>
-				<img class="brand__icon" src={logoIcon} alt="" width="64" height="64" />
-				<img class="brand__wordmark" src={logoWordmark} alt="Hero Habits" width="240" height="65" />
+				<img class="brand__logo" src={logoNav} alt="QuestorLog" width="328" height="96" />
 			</a>
 
 			<nav class="top-nav" aria-label="Primary">
@@ -257,6 +256,21 @@
 					{/if}
 				</a>
 			{/each}
+			{#if isStaffRole(profile?.app_role)}
+				<a
+					href={resolve('/admin/')}
+					class:active={isActive('/admin')}
+					aria-label="Admin"
+					title="Admin"
+				>
+					<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+						<path
+							fill="currentColor"
+							d="M12 1.8 3.5 5v6.2c0 5.3 3.6 10.2 8.5 11.5 4.9-1.3 8.5-6.2 8.5-11.5V5L12 1.8Zm0 2.2 6.5 2.5v4.7c0 4.2-2.7 8.1-6.5 9.3-3.8-1.2-6.5-5.1-6.5-9.3V6.5L12 4Zm-1.1 10.8 4.9-4.9 1.4 1.4-6.3 6.3-3.2-3.2 1.4-1.4 1.8 1.8Z"
+						/>
+					</svg>
+				</a>
+			{/if}
 		</nav>
 	{/if}
 
@@ -323,13 +337,13 @@
 		position: sticky;
 		top: 0;
 		z-index: 20;
-		min-height: 4.25rem;
+		min-height: 4.75rem;
 	}
 
 	@media (min-width: 640px) {
 		.topbar {
 			padding: 0.75rem 1.5rem;
-			min-height: 4.75rem;
+			min-height: 5.25rem;
 		}
 	}
 
@@ -346,48 +360,27 @@
 	.brand {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.55rem;
 		text-decoration: none;
 		color: var(--text);
 		margin-right: auto;
 		min-height: 44px;
-		padding: 0.15rem 0.35rem 0.15rem 0.15rem;
+		padding: 0.15rem 0.25rem;
 		border-radius: 0.85rem;
 	}
 
-	.brand__icon {
+	.brand__logo {
 		display: block;
-		width: 3rem;
-		height: 3rem;
-		border-radius: 0.7rem;
-		object-fit: cover;
-		flex-shrink: 0;
-		box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 18%, transparent);
-	}
-
-	.brand__wordmark {
-		display: block;
-		height: 1.85rem;
+		height: 3.35rem;
 		width: auto;
-		max-width: min(48vw, 11rem);
+		max-width: min(62vw, 16rem);
 		object-fit: contain;
 		object-position: left center;
 	}
 
 	@media (min-width: 640px) {
-		.brand {
-			gap: 0.7rem;
-		}
-
-		.brand__icon {
-			width: 3.5rem;
-			height: 3.5rem;
-			border-radius: 0.85rem;
-		}
-
-		.brand__wordmark {
-			height: 2.35rem;
-			max-width: 14rem;
+		.brand__logo {
+			height: 3.85rem;
+			max-width: 19rem;
 		}
 	}
 

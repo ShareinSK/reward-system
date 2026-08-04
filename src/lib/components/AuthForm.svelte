@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import logoIcon from '$lib/assets/logo-app.png';
-	import logoWordmark from '$lib/assets/word-mark.svg';
+	import logoMark from '$lib/assets/logo-mark.svg';
 	import { supabase } from '$lib/supabase';
 	import type { ExperienceMode } from '$lib/types';
 
@@ -106,11 +105,10 @@
 
 <form class="auth-card" onsubmit={submit}>
 	<div class="auth-card__brand">
-		<div class="brand-lockup" aria-label="Hero Habits">
-			<img class="brand-lockup__icon" src={logoIcon} alt="" width="72" height="72" />
-			<img class="brand-lockup__wordmark" src={logoWordmark} alt="Hero Habits" width="280" height="76" />
+		<div class="brand-lockup" aria-hidden="true">
+			<img class="brand-lockup__logo" src={logoMark} alt="" width="192" height="192" />
 		</div>
-		<h1>{mode === 'login' ? 'Welcome back' : 'Create account'}</h1>
+		<h1>{mode === 'login' ? 'QuestorLog' : 'Create account'}</h1>
 		<p class="lede">Complete quests, earn XP, and claim bounties with your guild.</p>
 	</div>
 
@@ -141,7 +139,7 @@
 		</label>
 
 		<fieldset class="mode-pick">
-			<legend>I want to use Hero Habits for</legend>
+			<legend>I want to use QuestorLog for</legend>
 			<label class="mode-option">
 				<input type="radio" name="experience" value="kids" bind:group={experienceMode} />
 				<span>
@@ -211,7 +209,7 @@
 		width: min(100%, 26rem);
 		display: grid;
 		gap: 0.85rem;
-		padding: 1.25rem;
+		padding: 0.85rem 1.25rem 1.25rem;
 		border-radius: 1.25rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -221,7 +219,7 @@
 
 	@media (min-width: 640px) {
 		.auth-card {
-			padding: 1.75rem;
+			padding: 1rem 1.75rem 1.75rem;
 		}
 	}
 
@@ -233,28 +231,22 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.75rem;
-		margin: 0 auto 0.5rem;
-		max-width: 100%;
+		margin: 0 auto 0.15rem;
+		line-height: 0;
 	}
 
-	.brand-lockup__icon {
+	.brand-lockup__logo {
 		display: block;
-		width: 3.75rem;
-		height: 3.75rem;
-		border-radius: 0.9rem;
-		object-fit: cover;
-		flex-shrink: 0;
-		box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent);
-	}
-
-	.brand-lockup__wordmark {
-		display: block;
-		height: 2.5rem;
-		width: auto;
-		max-width: min(100%, 14rem);
+		width: 10.5rem;
+		height: 10.5rem;
 		object-fit: contain;
-		object-position: left center;
+	}
+
+	@media (min-width: 640px) {
+		.brand-lockup__logo {
+			width: 12rem;
+			height: 12rem;
+		}
 	}
 
 	.auth-card__brand h1 {
@@ -263,7 +255,7 @@
 		font-weight: 700;
 		letter-spacing: -0.02em;
 		color: var(--text);
-		margin: 0.35rem 0 0.35rem;
+		margin: 0.1rem 0 0.35rem;
 	}
 
 	.lede {

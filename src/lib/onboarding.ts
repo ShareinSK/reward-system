@@ -25,7 +25,7 @@ export function getTourSteps(mode: ExperienceMode = 'kids'): TourStep[] {
 	return [
 		{
 			id: 'welcome',
-			title: 'Welcome to Hero Habits',
+			title: 'Welcome to QuestorLog',
 			body: 'A quick tour of your guild toolkit. You will see where to add people, create quests, set bounties, and track XP.'
 		},
 		{

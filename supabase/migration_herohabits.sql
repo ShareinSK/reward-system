@@ -1,4 +1,4 @@
--- Hero Habits soft-launch + monetization foundation
+-- QuestorLog soft-launch + monetization foundation
 -- Run in Supabase SQL Editor after prior migrations.
 
 -- ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ alter table public.households
     check (experience_mode in ('kids', 'goals')),
   add column if not exists disabled boolean not null default false;
 
-update public.households set name = 'Hero Habits' where name = 'Family Rewards';
+update public.households set name = 'QuestorLog' where name = 'Family Rewards';
 
 -- ---------------------------------------------------------------------------
 -- Entitlements (one row per household)
@@ -127,12 +127,12 @@ create table if not exists public.notification_templates (
 );
 
 insert into public.notification_templates (key, channel, subject, body) values
-  ('trial_started', 'email', 'Your Hero Habits Pro trial has started', 'You have 15 days of Pro. Invite co-managers and add more participants, activities, and goals.'),
-  ('trial_3d', 'email', '3 days left on your Hero Habits trial', 'Your Pro trial ends in 3 days. Upgrade to keep higher limits.'),
-  ('trial_1d', 'email', '1 day left on your Hero Habits trial', 'Tomorrow you move to the Free plan unless you upgrade.'),
-  ('trial_expired', 'email', 'Your Hero Habits trial ended', 'You are now on Free. Existing data stays; new adds are limited until you upgrade.'),
-  ('inactive_nudge', 'push', null, 'Log today’s habits or award points in Hero Habits.'),
-  ('feedback_ask', 'email', 'How is Hero Habits going?', 'We would love your feedback while we soft-launch. Reply to this email or use the in-app feedback link.')
+  ('trial_started', 'email', 'Your QuestorLog Pro trial has started', 'You have 15 days of Pro. Invite co-managers and add more participants, activities, and goals.'),
+  ('trial_3d', 'email', '3 days left on your QuestorLog trial', 'Your Pro trial ends in 3 days. Upgrade to keep higher limits.'),
+  ('trial_1d', 'email', '1 day left on your QuestorLog trial', 'Tomorrow you move to the Free plan unless you upgrade.'),
+  ('trial_expired', 'email', 'Your QuestorLog trial ended', 'You are now on Free. Existing data stays; new adds are limited until you upgrade.'),
+  ('inactive_nudge', 'push', null, 'Log today’s habits or award points in QuestorLog.'),
+  ('feedback_ask', 'email', 'How is QuestorLog going?', 'We would love your feedback while we soft-launch. Reply to this email or use the in-app feedback link.')
 on conflict (key) do nothing;
 
 create table if not exists public.notification_log (
@@ -414,7 +414,7 @@ begin
 
   insert into public.households (name, invite_code, created_by, experience_mode)
   values (
-    'Hero Habits',
+    'QuestorLog',
     public.generate_invite_code(),
     new.id,
     coalesce(nullif(new.raw_user_meta_data->>'experience_mode', ''), 'kids')
@@ -468,7 +468,7 @@ begin
   end if;
 
   insert into public.households (name, invite_code, created_by)
-  values ('Hero Habits', public.generate_invite_code(), auth.uid())
+  values ('QuestorLog', public.generate_invite_code(), auth.uid())
   returning id into hid;
 
   insert into public.household_members (household_id, user_id, role)

@@ -8,7 +8,7 @@
 	<p class="muted">Last updated: August 2, 2026</p>
 
 	<p>
-		By using Hero Habits you agree to these terms. If you do not agree, do not use the service.
+		By using QuestorLog you agree to these terms. If you do not agree, do not use the service.
 	</p>
 
 	<h2>Accounts</h2>
@@ -38,7 +38,7 @@
 
 	<h2>Disclaimer</h2>
 	<p>
-		Hero Habits is provided “as is” during community soft launch. We work to keep the service
+		QuestorLog is provided “as is” during community soft launch. We work to keep the service
 		available but do not guarantee uninterrupted uptime.
 	</p>
 
