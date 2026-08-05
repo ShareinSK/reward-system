@@ -21,3 +21,5 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+supabase/functions/**/.deploy-payload.json
+_mcp_deploy_args.json

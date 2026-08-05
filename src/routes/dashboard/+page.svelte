@@ -14,6 +14,16 @@
 	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import {
+		enqueuePendingAwards,
+		flushPendingAwards,
+		isNetworkLikeError,
+		listPendingAwards,
+		loadDashboardCache,
+		newClientRequestId,
+		saveDashboardCache,
+		type PendingAward
+	} from '$lib/offlineAwards';
+	import {
 		balanceForParticipant,
 		filterSince,
 		startOfLocalDay,
@@ -42,6 +52,9 @@
 	let error = $state('');
 	let saving = $state(false);
 	let allocateSuccess = $state('');
+	let pendingCount = $state(0);
+	let syncing = $state(false);
+	let householdId = $state('');
 
 	let activities = $state<Activity[]>([]);
 	let participants = $state<Participant[]>([]);
@@ -86,9 +99,14 @@
 	const selectedActivity = $derived(
 		activities.find((a) => a.id === selectedActivityId) ?? null
 	);
-	const checkedParticipants = $derived(participants.filter((p) => selectedIds[p.id]));
+	const awardableParticipants = $derived(
+		selectedActivity?.assignee_participant_id
+			? participants.filter((p) => p.id === selectedActivity.assignee_participant_id)
+			: participants
+	);
+	const checkedParticipants = $derived(awardableParticipants.filter((p) => selectedIds[p.id]));
 	const allSelected = $derived(
-		participants.length > 0 && participants.every((p) => selectedIds[p.id])
+		awardableParticipants.length > 0 && awardableParticipants.every((p) => selectedIds[p.id])
 	);
 	const previewParticipant = $derived(
 		aiPreview ? participants.find((p) => p.id === aiPreview!.participant_id) : null
@@ -96,6 +114,38 @@
 	const previewActivity = $derived(
 		aiPreview ? activities.find((a) => a.id === aiPreview!.activity_id) : null
 	);
+
+	async function refreshPending(hid = householdId) {
+		if (!hid) {
+			pendingCount = 0;
+			return;
+		}
+		pendingCount = (await listPendingAwards(hid)).length;
+	}
+
+	async function syncPending(hid = householdId) {
+		if (!hid || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+			await refreshPending(hid);
+			return;
+		}
+		syncing = true;
+		try {
+			const result = await flushPendingAwards(hid);
+			pendingCount = result.remaining;
+			if (result.flushed > 0) {
+				try {
+					ledger = await fetchLedger();
+				} catch {
+					/* keep optimistic */
+				}
+			}
+			if (result.error && result.remaining > 0) {
+				error = result.error;
+			}
+		} finally {
+			syncing = false;
+		}
+	}
 
 	$effect(() => {
 		let cancelled = false;
@@ -110,29 +160,62 @@
 			}
 			try {
 				const hid = await ensureHouseholdId();
-				setActiveHouseholdId(hid);
-				const [a, p, l, s] = await Promise.all([
-					fetchActivities(),
-					fetchParticipants(),
-					fetchLedger(),
-					fetchHouseholdSettings(hid)
-				]);
 				if (cancelled) return;
-				activities = a;
-				participants = p;
-				ledger = l;
-				settings = settingsFromHousehold(s);
-				if (!untrack(() => selectedActivityId) && a[0]) {
-					selectedActivityId = a[0].id;
+				householdId = hid;
+				setActiveHouseholdId(hid);
+
+				try {
+					const [a, p, l, s] = await Promise.all([
+						fetchActivities(),
+						fetchParticipants(),
+						fetchLedger(),
+						fetchHouseholdSettings(hid)
+					]);
+					if (cancelled) return;
+					activities = a;
+					participants = p;
+					ledger = l;
+					settings = settingsFromHousehold(s);
+					try {
+						await saveDashboardCache({
+							household_id: hid,
+							activities: a,
+							participants: p,
+							settings,
+							saved_at: new Date().toISOString()
+						});
+					} catch {
+						/* offline cache is best-effort */
+					}
+				} catch (err) {
+					const cache = await loadDashboardCache(hid);
+					if (cache) {
+						activities = cache.activities;
+						participants = cache.participants;
+						settings = cache.settings;
+						error = isNetworkLikeError(err)
+							? 'Offline — using cached quests. Awards will sync when you reconnect.'
+							: err instanceof Error
+								? err.message
+								: String(err);
+					} else {
+						throw err;
+					}
+				}
+
+				if (!untrack(() => selectedActivityId) && activities[0]) {
+					selectedActivityId = activities[0].id;
 					allocatePoints = settings.allow_decimal_points
-						? Number(a[0].default_points)
-						: Math.round(Number(a[0].default_points));
+						? Number(activities[0].default_points)
+						: Math.round(Number(activities[0].default_points));
 				}
 				const nextSelected: Record<string, boolean> = {};
-				for (const person of p) {
+				for (const person of participants) {
 					nextSelected[person.id] = untrack(() => selectedIds[person.id]) ?? false;
 				}
 				selectedIds = nextSelected;
+				await refreshPending(hid);
+				await syncPending(hid);
 			} catch (err) {
 				if (!cancelled) error = err instanceof Error ? err.message : String(err);
 			} finally {
@@ -145,18 +228,34 @@
 		};
 	});
 
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const onOnline = () => {
+			void syncPending();
+		};
+		window.addEventListener('online', onOnline);
+		return () => window.removeEventListener('online', onOnline);
+	});
+
 	function onActivityChange() {
 		const activity = activities.find((a) => a.id === selectedActivityId);
 		if (activity) {
 			allocatePoints = settings.allow_decimal_points
 				? Number(activity.default_points)
 				: Math.round(Number(activity.default_points));
+			if (activity.assignee_participant_id) {
+				const next: Record<string, boolean> = {};
+				for (const p of participants) {
+					next[p.id] = p.id === activity.assignee_participant_id;
+				}
+				selectedIds = next;
+			}
 		}
 	}
 
 	function toggleAll(checked: boolean) {
-		const next: Record<string, boolean> = {};
-		for (const p of participants) next[p.id] = checked;
+		const next: Record<string, boolean> = { ...selectedIds };
+		for (const p of awardableParticipants) next[p.id] = checked;
 		selectedIds = next;
 	}
 
@@ -166,6 +265,41 @@
 
 	async function refreshLedger() {
 		ledger = await fetchLedger();
+	}
+
+	async function queueOfflineAwards(
+		hid: string,
+		activityId: string,
+		points: number,
+		note: string,
+		people: Participant[]
+	) {
+		const pending: PendingAward[] = people.map((p) => ({
+			client_request_id: newClientRequestId(),
+			participant_id: p.id,
+			activity_id: activityId,
+			points,
+			note,
+			household_id: hid,
+			created_at_iso: new Date().toISOString()
+		}));
+		await enqueuePendingAwards(pending);
+		ledger = [
+			...pending.map((a) => ({
+				id: `pending:${a.client_request_id}`,
+				participant_id: a.participant_id,
+				activity_id: a.activity_id,
+				grand_reward_id: null,
+				points: a.points,
+				note: a.note,
+				household_id: a.household_id,
+				created_by: null,
+				created_at: a.created_at_iso,
+				client_request_id: a.client_request_id
+			})),
+			...ledger
+		];
+		pendingCount = (await listPendingAwards(hid)).length;
 	}
 
 	async function allocateToSelected(e: Event) {
@@ -201,17 +335,41 @@
 		saving = true;
 		try {
 			const note = allocateNote.trim() || `Awarded for ${selectedActivity.title}`;
-			await Promise.all(
-				checkedParticipants.map((p) =>
-					insertLedgerEntry({
-						participant_id: p.id,
-						activity_id: selectedActivity.id,
-						points,
-						note
-					})
-				)
-			);
-			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} XP to ${checkedParticipants.length} questor${checkedParticipants.length === 1 ? '' : 's'}.`;
+			const hid = householdId || (await ensureHouseholdId());
+			householdId = hid;
+			const people = [...checkedParticipants];
+			const activityId = selectedActivity.id;
+
+			if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+				await queueOfflineAwards(hid, activityId, points, note, people);
+				allocateSuccess = `Saved offline — ${formatPoints(points, settings.allow_decimal_points, { signed: true })} XP for ${people.length} questor${people.length === 1 ? '' : 's'} will sync when you’re back online.`;
+				allocateNote = '';
+				toggleAll(false);
+				return;
+			}
+
+			try {
+				await Promise.all(
+					people.map((p) =>
+						insertLedgerEntry({
+							participant_id: p.id,
+							activity_id: activityId,
+							points,
+							note,
+							client_request_id: newClientRequestId()
+						})
+					)
+				);
+			} catch (err) {
+				if (!isNetworkLikeError(err)) throw err;
+				await queueOfflineAwards(hid, activityId, points, note, people);
+				allocateSuccess = 'Saved offline — will sync when you’re back online.';
+				allocateNote = '';
+				toggleAll(false);
+				return;
+			}
+
+			allocateSuccess = `Added ${formatPoints(points, settings.allow_decimal_points, { signed: true })} XP to ${people.length} questor${people.length === 1 ? '' : 's'}.`;
 			allocateNote = '';
 			toggleAll(false);
 			await refreshLedger();
@@ -310,6 +468,17 @@
 		{#if allocateSuccess}
 			<p class="ok" role="status">{allocateSuccess}</p>
 		{/if}
+		{#if pendingCount > 0}
+			<div class="sync-banner" role="status">
+				<span
+					>{pendingCount} award{pendingCount === 1 ? '' : 's'} waiting to sync{#if syncing}
+						…{/if}</span
+				>
+				<button type="button" class="sync-btn" disabled={syncing} onclick={() => syncPending()}>
+					{syncing ? 'Syncing…' : 'Sync now'}
+				</button>
+			</div>
+		{/if}
 
 		<div class="dash__grid">
 			<div class="panel panel--board">
@@ -395,7 +564,7 @@
 						</button>
 					</div>
 					<ul class="check-list">
-						{#each participants as p (p.id)}
+						{#each awardableParticipants as p (p.id)}
 							<li>
 								<label class="check-row">
 									<input type="checkbox" bind:checked={selectedIds[p.id]} />
@@ -405,6 +574,9 @@
 							</li>
 						{/each}
 					</ul>
+					{#if selectedActivity?.assignee_participant_id}
+						<span class="hint">This quest is assigned to one questor.</span>
+					{/if}
 				</div>
 
 				<label class="field">
@@ -860,6 +1032,38 @@
 		border-radius: 0.75rem;
 		background: var(--ok-bg);
 		color: var(--ok-text);
+	}
+
+	.sync-banner {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.65rem;
+		margin: 0;
+		padding: 0.65rem 0.8rem;
+		border-radius: 0.75rem;
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		color: var(--text);
+		border: 1px solid var(--border);
+		font-size: 0.9rem;
+	}
+
+	.sync-btn {
+		border: none;
+		border-radius: 0.65rem;
+		padding: 0.45rem 0.75rem;
+		min-height: 40px;
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+		background: var(--accent-bright);
+		color: var(--accent-ink);
+	}
+
+	.sync-btn:disabled {
+		opacity: 0.65;
+		cursor: wait;
 	}
 
 	.ai-promo {

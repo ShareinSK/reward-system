@@ -2,8 +2,15 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { base, resolve } from '$app/paths';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/logo-mark.svg';
 	import logoNav from '$lib/assets/logo-with-text.svg';
+	import iconAdmin from '$lib/assets/admin.svg';
+	import iconDashboard from '$lib/assets/dashboard.svg';
+	import iconParticipants from '$lib/assets/participants.svg';
+	import iconReward from '$lib/assets/reward.svg';
+	import iconSettings from '$lib/assets/settings.svg';
+	import iconShare from '$lib/assets/share-configuration.svg';
+	import iconTask from '$lib/assets/task.svg';
 	import OnboardingGuide from '$lib/components/OnboardingGuide.svelte';
 	import { copyFor, navLabels } from '$lib/experience';
 	import { fetchEntitlement, startTrial } from '$lib/entitlements';
@@ -11,6 +18,7 @@
 	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import { shouldStartOnboarding } from '$lib/onboarding';
+	import { startLocalQuestReminderLoop } from '$lib/localQuestReminders';
 	import { fetchMyProfile, isStaffRole } from '$lib/profile';
 	import { getSupabaseConfigError, supabase } from '$lib/supabase';
 	import type { ExperienceMode, Profile } from '$lib/types';
@@ -31,12 +39,12 @@
 	const useGoalsUi = $derived(experienceMode === 'goals');
 
 	const nav = $derived([
-		{ href: '/dashboard', label: labels.dashboard, icon: 'home' },
-		{ href: '/participants', label: labels.participants, icon: 'people' },
-		{ href: '/activities', label: labels.activities, icon: 'tasks' },
-		{ href: '/rewards', label: labels.rewards, icon: 'gift' },
-		{ href: '/share', label: labels.share, icon: 'share' },
-		{ href: '/settings', label: labels.settings, icon: 'settings' }
+		{ href: '/dashboard', label: labels.dashboard, icon: iconDashboard },
+		{ href: '/participants', label: labels.participants, icon: iconParticipants },
+		{ href: '/activities', label: labels.activities, icon: iconTask },
+		{ href: '/rewards', label: labels.rewards, icon: iconReward },
+		{ href: '/share', label: labels.share, icon: iconShare },
+		{ href: '/settings', label: labels.settings, icon: iconSettings }
 	] as const);
 
 	async function refreshHouseholdChrome(userSession: Session | null) {
@@ -146,6 +154,11 @@
 		window.addEventListener('hh:start-onboarding', onReplay);
 		return () => window.removeEventListener('hh:start-onboarding', onReplay);
 	});
+
+	$effect(() => {
+		if (!showChrome || !session) return;
+		return startLocalQuestReminderLoop();
+	});
 </script>
 
 <svelte:head>
@@ -188,14 +201,18 @@
 						class:active={isActive(item.href)}
 						data-tour={tourTargetFor(item.href)}
 					>
-						{item.label}
+						<img class="nav-icon" src={item.icon} alt="" width="47" height="47" />
+						<span class="nav-label">{item.label}</span>
 					</a>
 				{/each}
 				{#if pricingEnabled}
 					<a href={resolve('/billing/')} class:active={isActive('/billing')}>Billing</a>
 				{/if}
 				{#if isStaffRole(profile?.app_role)}
-					<a href={resolve('/admin/')} class:active={isActive('/admin')}>Admin</a>
+					<a href={resolve('/admin/')} class:active={isActive('/admin')}>
+						<img class="nav-icon" src={iconAdmin} alt="" width="47" height="47" />
+						<span class="nav-label">Admin</span>
+					</a>
 				{/if}
 			</nav>
 
@@ -211,49 +228,7 @@
 					title={item.label}
 					data-tour={tourTargetFor(item.href)}
 				>
-					{#if item.icon === 'home'}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M12 3.2 3.5 10.2c-.3.3-.2.8.2.9h1.8v7.4c0 .6.5 1.1 1.1 1.1h3.4c.6 0 1.1-.5 1.1-1.1v-3.5h2.8v3.5c0 .6.5 1.1 1.1 1.1h3.4c.6 0 1.1-.5 1.1-1.1v-7.4h1.8c.4-.1.5-.6.2-.9L12 3.2Z"
-							/>
-						</svg>
-					{:else if item.icon === 'people'}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M9 11a3.25 3.25 0 1 0 0-6.5A3.25 3.25 0 0 0 9 11Zm6 0a3.25 3.25 0 1 0 0-6.5A3.25 3.25 0 0 0 15 11ZM4.5 19.5c0-2.6 2.2-4.5 4.5-4.5h.4c.7.3 1.4.5 2.1.5s1.4-.2 2.1-.5h.4c2.3 0 4.5 1.9 4.5 4.5 0 .6-.4 1-1 1H5.5c-.6 0-1-.4-1-1Z"
-							/>
-						</svg>
-					{:else if item.icon === 'tasks'}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M9.4 16.6 5.8 13l1.4-1.4 2.2 2.2 6.4-6.4L17.2 9l-7.8 7.6ZM6.5 4h11c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2h-11c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z"
-							/>
-						</svg>
-					{:else if item.icon === 'gift'}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M12 7.2c.9-1.6 2.5-2.7 4.3-2.7 1.5 0 2.7 1.2 2.7 2.7 0 2.1-2.3 3.6-5.5 4.1V7.2Zm-4.3-2.7c1.8 0 3.4 1.1 4.3 2.7v4.1C8.8 10.8 6.5 9.3 6.5 7.2c0-1.5 1.2-2.7 2.7-2.7ZM4.5 13.5h6.8v7H6c-.8 0-1.5-.7-1.5-1.5v-5.5Zm8.2 0h6.8v5.5c0 .8-.7 1.5-1.5 1.5h-5.3v-7Z"
-							/>
-						</svg>
-					{:else if item.icon === 'share'}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M18 16.1a2.9 2.9 0 0 0-2 .8l-6.4-3.7a3 3 0 0 0 0-1.4l6.4-3.7a2.9 2.9 0 1 0-.9-1.6L8.7 10.2a2.9 2.9 0 1 0 0 3.6l6.4 3.7a2.9 2.9 0 1 0 2.9-1.4Z"
-							/>
-						</svg>
-					{:else}
-						<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-							<path
-								fill="currentColor"
-								d="M10.3 3.5h3.4l.4 2.2c.6.2 1.1.5 1.6.9l2.1-.8 1.7 2.9-1.7 1.4c.1.5.1 1 0 1.5l1.7 1.4-1.7 2.9-2.1-.8c-.5.4-1 .7-1.6.9l-.4 2.2h-3.4l-.4-2.2a5.7 5.7 0 0 1-1.6-.9l-2.1.8-1.7-2.9 1.7-1.4a5.8 5.8 0 0 1 0-1.5L4.5 8.7l1.7-2.9 2.1.8c.5-.4 1-.7 1.6-.9l.4-2.2ZM12 9.2a2.8 2.8 0 1 0 0 5.6 2.8 2.8 0 0 0 0-5.6Z"
-							/>
-						</svg>
-					{/if}
+					<img class="nav-icon" src={item.icon} alt="" width="47" height="47" />
 				</a>
 			{/each}
 			{#if isStaffRole(profile?.app_role)}
@@ -263,12 +238,7 @@
 					aria-label="Admin"
 					title="Admin"
 				>
-					<svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-						<path
-							fill="currentColor"
-							d="M12 1.8 3.5 5v6.2c0 5.3 3.6 10.2 8.5 11.5 4.9-1.3 8.5-6.2 8.5-11.5V5L12 1.8Zm0 2.2 6.5 2.5v4.7c0 4.2-2.7 8.1-6.5 9.3-3.8-1.2-6.5-5.1-6.5-9.3V6.5L12 4Zm-1.1 10.8 4.9-4.9 1.4 1.4-6.3 6.3-3.2-3.2 1.4-1.4 1.8 1.8Z"
-						/>
-					</svg>
+					<img class="nav-icon" src={iconAdmin} alt="" width="47" height="47" />
 				</a>
 			{/if}
 		</nav>
@@ -393,10 +363,11 @@
 	.top-nav a {
 		text-decoration: none;
 		color: var(--text-muted);
-		padding: 0.55rem 0.85rem;
+		padding: 0.45rem 0.85rem 0.45rem 0.55rem;
 		min-height: 44px;
 		display: inline-flex;
 		align-items: center;
+		gap: 0.45rem;
 		border-radius: 999px;
 		font-size: 0.9rem;
 		transition: transform 0.15s ease;
@@ -458,9 +429,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		min-height: 44px;
+		min-height: 56px;
 		min-width: 44px;
-		padding: 0.4rem;
+		padding: 0.25rem;
 		border-radius: 0.85rem;
 		text-decoration: none;
 		color: var(--text-soft);
@@ -477,10 +448,15 @@
 	}
 
 	.nav-icon {
-		width: 1.45rem;
-		height: 1.45rem;
+		width: 47px;
+		height: 47px;
 		display: block;
 		flex-shrink: 0;
+		object-fit: contain;
+	}
+
+	.nav-label {
+		line-height: 1.1;
 	}
 
 	.main {

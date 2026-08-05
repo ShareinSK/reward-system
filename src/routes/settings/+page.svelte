@@ -5,8 +5,8 @@
 	import {
 		ensureHouseholdId,
 		fetchHousehold,
-		updateExperienceMode,
-		updateHouseholdSettings
+		updateHouseholdSettings,
+		updateHouseholdTimezone
 	} from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
 	import { resetOnboarding } from '$lib/onboarding';
@@ -14,7 +14,8 @@
 	import { fetchMyProfile } from '$lib/profile';
 	import { settingsFromHousehold } from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { ExperienceMode, Household, HouseholdSettings } from '$lib/types';
+	import type { Household, HouseholdSettings } from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_TIMEZONE } from '$lib/types';
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -26,8 +27,39 @@
 
 	let allowNegative = $state(false);
 	let allowDecimals = $state(false);
-	let experienceMode = $state<ExperienceMode>('kids');
+	let timezone = $state(DEFAULT_HOUSEHOLD_TIMEZONE);
+	let browserTimezone = $state('');
 	let pushBusy = $state(false);
+
+	const COMMON_TIMEZONES = [
+		'America/New_York',
+		'America/Chicago',
+		'America/Denver',
+		'America/Los_Angeles',
+		'America/Phoenix',
+		'America/Toronto',
+		'America/Vancouver',
+		'America/Mexico_City',
+		'America/Sao_Paulo',
+		'Europe/London',
+		'Europe/Paris',
+		'Europe/Berlin',
+		'Europe/Madrid',
+		'Asia/Kolkata',
+		'Asia/Singapore',
+		'Asia/Tokyo',
+		'Asia/Shanghai',
+		'Australia/Sydney',
+		'Pacific/Auckland',
+		'UTC'
+	];
+
+	const timezoneOptions = $derived.by(() => {
+		const set = new Set(COMMON_TIMEZONES);
+		if (browserTimezone) set.add(browserTimezone);
+		if (timezone) set.add(timezone);
+		return [...set].sort((a, b) => a.localeCompare(b));
+	});
 
 	async function load() {
 		loading = true;
@@ -51,7 +83,19 @@
 			const settings = settingsFromHousehold(household);
 			allowNegative = settings.allow_negative_points;
 			allowDecimals = settings.allow_decimal_points;
-			experienceMode = household.experience_mode;
+			timezone = household.timezone || DEFAULT_HOUSEHOLD_TIMEZONE;
+			browserTimezone =
+				typeof Intl !== 'undefined'
+					? Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+					: '';
+			// Suggest browser TZ when still on the DB default and browser differs
+			if (
+				browserTimezone &&
+				household.timezone === DEFAULT_HOUSEHOLD_TIMEZONE &&
+				browserTimezone !== DEFAULT_HOUSEHOLD_TIMEZONE
+			) {
+				timezone = browserTimezone;
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -75,12 +119,16 @@
 				allow_decimal_points: allowDecimals
 			};
 			const saved = await updateHouseholdSettings(household.id, next);
-			if (experienceMode !== household.experience_mode) {
-				await updateExperienceMode(household.id, experienceMode);
-			}
 			allowNegative = saved.allow_negative_points;
 			allowDecimals = saved.allow_decimal_points;
-			household = { ...household, ...saved, experience_mode: experienceMode };
+			if (timezone !== household.timezone) {
+				await updateHouseholdTimezone(household.id, timezone);
+			}
+			household = {
+				...household,
+				...saved,
+				timezone
+			};
 			notice = 'Guild Stats saved. Reload if the theme does not update.';
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
@@ -123,7 +171,7 @@
 	<header>
 		<p class="eyebrow">Configuration</p>
 		<h1>Guild Stats</h1>
-		<p class="lede">Tune scoring rules and choose Family adventures or Personal quests.</p>
+		<p class="lede">Tune scoring rules and reminder timezone for your guild.</p>
 	</header>
 
 	{#if loading}
@@ -142,34 +190,6 @@
 			{/if}
 
 			<label class="toggle">
-				<input
-					type="radio"
-					name="mode"
-					value="kids"
-					checked={experienceMode === 'kids'}
-					onchange={() => (experienceMode = 'kids')}
-				/>
-				<span>
-					<strong>Family adventures</strong>
-					<em>Playful UI for family milestones.</em>
-				</span>
-			</label>
-
-			<label class="toggle">
-				<input
-					type="radio"
-					name="mode"
-					value="goals"
-					checked={experienceMode === 'goals'}
-					onchange={() => (experienceMode = 'goals')}
-				/>
-				<span>
-					<strong>Personal quests</strong>
-					<em>Elegant quests and personal bounties.</em>
-				</span>
-			</label>
-
-			<label class="toggle">
 				<input bind:checked={allowDecimals} type="checkbox" />
 				<span>
 					<strong>Allow decimal XP</strong>
@@ -183,6 +203,20 @@
 					<strong>Allow negative XP</strong>
 					<em>When off, guild mates can’t subtract XP for quests. Claiming a bounty still spends XP.</em>
 				</span>
+			</label>
+
+			<label class="field">
+				<span>
+					<strong>Timezone</strong>
+					<em>Used for daily quest windows and incomplete-quest reminders.</em>
+				</span>
+				<select bind:value={timezone}>
+					{#each timezoneOptions as tz}
+						<option value={tz}>
+							{tz}{browserTimezone === tz ? ' (this device)' : ''}
+						</option>
+					{/each}
+				</select>
 			</label>
 
 			<button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save Guild Stats'}</button>
@@ -272,6 +306,34 @@
 		font-family: var(--font-display);
 		font-weight: 700;
 		color: var(--text);
+	}
+	.field {
+		display: grid;
+		gap: 0.45rem;
+	}
+	.field span {
+		display: grid;
+		gap: 0.2rem;
+	}
+	.field strong {
+		color: var(--text);
+		font-size: 0.95rem;
+	}
+	.field em {
+		font-style: normal;
+		color: var(--text-muted);
+		font-size: 0.85rem;
+	}
+	.field select {
+		border-radius: 0.75rem;
+		border: 1px solid var(--border);
+		background: var(--surface-strong);
+		color: var(--text);
+		padding: 0.7rem 0.85rem;
+		min-height: 44px;
+		font: inherit;
+		width: 100%;
+		box-sizing: border-box;
 	}
 	.toggle {
 		display: grid;

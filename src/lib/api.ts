@@ -23,7 +23,18 @@ export async function fetchActivities(): Promise<Activity[]> {
 		.eq('household_id', hid)
 		.order('title', { ascending: true });
 	if (error) throw error;
-	return (data ?? []) as Activity[];
+	return (data ?? []).map((row) => ({
+		...(row as Activity),
+		time_of_day:
+			row.time_of_day === 'morning' ||
+			row.time_of_day === 'afternoon' ||
+			row.time_of_day === 'evening' ||
+			row.time_of_day === 'night' ||
+			row.time_of_day === 'all_day'
+				? row.time_of_day
+				: 'all_day',
+		assignee_participant_id: (row.assignee_participant_id as string | null) ?? null
+	})) as Activity[];
 }
 
 export async function fetchGrandRewards(): Promise<GrandReward[]> {
@@ -66,20 +77,29 @@ export async function insertLedgerEntry(entry: {
 	grand_reward_id?: string | null;
 	points: number;
 	note?: string;
+	client_request_id?: string | null;
 }): Promise<PointsLedgerEntry> {
 	const hid = await householdId();
 	const {
 		data: { user }
 	} = await supabase.auth.getUser();
 
+	const payload: Record<string, unknown> = {
+		participant_id: entry.participant_id,
+		activity_id: entry.activity_id ?? null,
+		grand_reward_id: entry.grand_reward_id ?? null,
+		points: entry.points,
+		household_id: hid,
+		note: entry.note ?? '',
+		created_by: user?.id ?? null
+	};
+	if (entry.client_request_id) {
+		payload.client_request_id = entry.client_request_id;
+	}
+
 	const { data, error } = await supabase
 		.from('points_ledger')
-		.insert({
-			...entry,
-			household_id: hid,
-			note: entry.note ?? '',
-			created_by: user?.id ?? null
-		})
+		.insert(payload)
 		.select('*')
 		.single();
 

@@ -1,8 +1,14 @@
+export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'night' | 'all_day';
+
 export type Activity = {
 	id: string;
 	title: string;
 	default_points: number;
 	allow_negative: boolean;
+	/** Expected completion window; default all_day */
+	time_of_day: TimeOfDay;
+	/** null = applies to every questor */
+	assignee_participant_id: string | null;
 	household_id: string;
 	created_by: string | null;
 	created_at: string;
@@ -38,6 +44,7 @@ export type PointsLedgerEntry = {
 	household_id: string;
 	created_by: string | null;
 	created_at: string;
+	client_request_id?: string | null;
 };
 
 export type ExperienceMode = 'kids' | 'goals';
@@ -49,10 +56,22 @@ export type Household = {
 	allow_negative_points: boolean;
 	allow_decimal_points: boolean;
 	experience_mode: ExperienceMode;
+	/** IANA timezone for local-day reminders */
+	timezone: string;
 	disabled: boolean;
 	created_by: string | null;
 	created_at: string;
 };
+
+export const DEFAULT_HOUSEHOLD_TIMEZONE = 'America/Chicago';
+
+export const TIME_OF_DAY_OPTIONS: { value: TimeOfDay; label: string }[] = [
+	{ value: 'morning', label: 'Morning' },
+	{ value: 'afternoon', label: 'Afternoon' },
+	{ value: 'evening', label: 'Evening' },
+	{ value: 'night', label: 'Night' },
+	{ value: 'all_day', label: 'All day' }
+];
 
 export type HouseholdSettings = {
 	allow_negative_points: boolean;

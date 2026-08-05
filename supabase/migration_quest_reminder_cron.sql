@@ -1,0 +1,34 @@
+-- Optional: schedule quest-reminder with pg_cron + pg_net instead of GitHub Actions.
+-- The app currently uses GitHub Actions (.github/workflows/quest-reminder-cron.yml).
+-- Only run this if you prefer DB-side cron and have set Vault secrets.
+
+-- Enable extensions (Dashboard → Database → Extensions also works)
+-- create extension if not exists pg_cron with schema pg_catalog;
+-- create extension if not exists pg_net with schema extensions;
+
+-- Store secrets (run once in SQL Editor; do not commit real values):
+--   select vault.create_secret('https://YOUR_REF.supabase.co', 'project_url');
+--   select vault.create_secret('YOUR_NOTIFICATION_CRON_SECRET', 'notification_cron_secret');
+
+-- Hourly invoke (minute 5):
+-- select cron.unschedule('quest-reminder-hourly') where exists (
+--   select 1 from cron.job where jobname = 'quest-reminder-hourly'
+-- );
+-- select
+--   cron.schedule(
+--     'quest-reminder-hourly',
+--     '5 * * * *',
+--     $$
+--     select net.http_post(
+--       url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url')
+--              || '/functions/v1/quest-reminder',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'Authorization', 'Bearer ' || (
+--           select decrypted_secret from vault.decrypted_secrets where name = 'notification_cron_secret'
+--         )
+--       ),
+--       body := '{}'::jsonb
+--     ) as request_id;
+--     $$
+--   );

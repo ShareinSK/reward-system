@@ -1,0 +1,46 @@
+# Hourly invoke of Supabase Edge Function `quest-reminder`.
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   PUBLIC_SUPABASE_URL          e.g. https://xxxx.supabase.co
+#   NOTIFICATION_CRON_SECRET     same value as Edge Function secret
+
+name: Quest reminder cron
+
+on:
+  schedule:
+    # Every hour at minute 5 (UTC). Aligns with end-of-window checks in household timezones.
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: quest-reminder-cron
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call quest-reminder
+        env:
+          PUBLIC_SUPABASE_URL: ${{ secrets.PUBLIC_SUPABASE_URL }}
+          NOTIFICATION_CRON_SECRET: ${{ secrets.NOTIFICATION_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PUBLIC_SUPABASE_URL:-}" ] || [ -z "${NOTIFICATION_CRON_SECRET:-}" ]; then
+            echo "::error::Missing PUBLIC_SUPABASE_URL and/or NOTIFICATION_CRON_SECRET."
+            exit 1
+          fi
+          url="${PUBLIC_SUPABASE_URL%/}/functions/v1/quest-reminder"
+          echo "POST $url"
+          code=$(curl -sS -o /tmp/quest-reminder-body.json -w '%{http_code}' \
+            -X POST "$url" \
+            -H "Authorization: Bearer ${NOTIFICATION_CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+          echo "HTTP $code"
+          cat /tmp/quest-reminder-body.json || true
+          echo
+          if [ "$code" != "200" ]; then
+            echo "::error::quest-reminder returned HTTP $code"
+            exit 1
+          fi
