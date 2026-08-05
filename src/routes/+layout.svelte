@@ -120,6 +120,7 @@
 			path !== '/' &&
 			!path.startsWith('/login') &&
 			!path.startsWith('/auth') &&
+			!path.startsWith('/reset-password') &&
 			!path.startsWith('/privacy') &&
 			!path.startsWith('/terms') &&
 			!path.startsWith('/feedback') &&
