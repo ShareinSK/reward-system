@@ -11,7 +11,7 @@
 
 	let { onAuthenticated }: Props = $props();
 
-	let mode = $state<'login' | 'signup'>('login');
+	let mode = $state<'login' | 'signup' | 'forgot'>('login');
 	let email = $state('');
 	let password = $state('');
 	let displayName = $state('');
@@ -32,6 +32,10 @@
 		const callback = new URL(resolve('/auth/callback/'), window.location.origin);
 		if (next) callback.searchParams.set('next', next);
 		return callback.toString();
+	}
+
+	function resetPasswordRedirectTo() {
+		return new URL(resolve('/reset-password/'), window.location.origin).toString();
 	}
 
 	async function signInWithGoogle() {
@@ -73,7 +77,13 @@
 		message = '';
 
 		try {
-			if (mode === 'signup') {
+			if (mode === 'forgot') {
+				const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+					redirectTo: resetPasswordRedirectTo()
+				});
+				if (resetError) throw resetError;
+				message = 'If an account exists for that email, we sent a reset link. Check your inbox.';
+			} else if (mode === 'signup') {
 				const { error: signUpError } = await supabase.auth.signUp({
 					email,
 					password,
@@ -101,6 +111,30 @@
 			loading = false;
 		}
 	}
+
+	function setMode(next: 'login' | 'signup' | 'forgot') {
+		mode = next;
+		error = '';
+		message = '';
+	}
+
+	const heading = $derived(
+		mode === 'forgot' ? 'Reset password' : mode === 'signup' ? 'Create account' : 'QuestorLog'
+	);
+	const lede = $derived(
+		mode === 'forgot'
+			? 'Enter your email and we will send a link to choose a new password.'
+			: 'Complete quests, earn XP, and claim bounties with your guild.'
+	);
+	const submitLabel = $derived(
+		loading
+			? 'Working…'
+			: mode === 'forgot'
+				? 'Send reset link'
+				: mode === 'signup'
+					? 'Sign up'
+					: 'Sign in'
+	);
 </script>
 
 <form class="auth-card" onsubmit={submit}>
@@ -108,29 +142,31 @@
 		<div class="brand-lockup" aria-hidden="true">
 			<img class="brand-lockup__logo" src={logoMark} alt="" width="192" height="192" />
 		</div>
-		<h1>{mode === 'login' ? 'QuestorLog' : 'Create account'}</h1>
-		<p class="lede">Complete quests, earn XP, and claim bounties with your guild.</p>
+		<h1>{heading}</h1>
+		<p class="lede">{lede}</p>
 	</div>
 
-	<button
-		type="button"
-		class="google"
-		disabled={loading || oauthLoading}
-		onclick={signInWithGoogle}
-	>
-		<svg class="google__icon" viewBox="0 0 24 24" aria-hidden="true">
-			<path
-				fill="#EA4335"
-				d="M12 10.2v3.6h5.1c-.2 1.2-1.5 3.6-5.1 3.6-3.1 0-5.6-2.5-5.6-5.6S8.9 6.2 12 6.2c1.8 0 3 .7 3.7 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12S6.9 21.3 12 21.3c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.6H12Z"
-			/>
-			<path fill="#34A853" d="M3.6 7.4 6.6 9.6C7.4 7.6 9.5 6.2 12 6.2c1.8 0 3 .7 3.7 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 8.2 2.7 4.9 4.9 3.6 7.4Z" />
-			<path fill="#4A90E2" d="M12 21.3c2.4 0 4.5-.8 6-2.1l-2.9-2.2c-.8.6-1.9 1-3.1 1-3.1 0-5.6-2.1-6.5-4.9l-3 2.3C4.1 18.9 7.7 21.3 12 21.3Z" />
-			<path fill="#FBBC05" d="M5.5 13.9c-.2-.6-.4-1.2-.4-1.9s.1-1.3.3-1.9L2.4 7.8C1.7 9.1 1.3 10.5 1.3 12s.4 2.9 1.1 4.2l3.1-2.3Z" />
-		</svg>
-		{oauthLoading ? 'Redirecting to Google…' : 'Continue with Google'}
-	</button>
+	{#if mode !== 'forgot'}
+		<button
+			type="button"
+			class="google"
+			disabled={loading || oauthLoading}
+			onclick={signInWithGoogle}
+		>
+			<svg class="google__icon" viewBox="0 0 24 24" aria-hidden="true">
+				<path
+					fill="#EA4335"
+					d="M12 10.2v3.6h5.1c-.2 1.2-1.5 3.6-5.1 3.6-3.1 0-5.6-2.5-5.6-5.6S8.9 6.2 12 6.2c1.8 0 3 .7 3.7 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12S6.9 21.3 12 21.3c5.5 0 9.1-3.9 9.1-9.3 0-.6-.1-1.1-.2-1.6H12Z"
+				/>
+				<path fill="#34A853" d="M3.6 7.4 6.6 9.6C7.4 7.6 9.5 6.2 12 6.2c1.8 0 3 .7 3.7 1.4l2.5-2.4C16.7 3.7 14.5 2.7 12 2.7 8.2 2.7 4.9 4.9 3.6 7.4Z" />
+				<path fill="#4A90E2" d="M12 21.3c2.4 0 4.5-.8 6-2.1l-2.9-2.2c-.8.6-1.9 1-3.1 1-3.1 0-5.6-2.1-6.5-4.9l-3 2.3C4.1 18.9 7.7 21.3 12 21.3Z" />
+				<path fill="#FBBC05" d="M5.5 13.9c-.2-.6-.4-1.2-.4-1.9s.1-1.3.3-1.9L2.4 7.8C1.7 9.1 1.3 10.5 1.3 12s.4 2.9 1.1 4.2l3.1-2.3Z" />
+			</svg>
+			{oauthLoading ? 'Redirecting to Google…' : 'Continue with Google'}
+		</button>
 
-	<div class="divider" aria-hidden="true"><span>or</span></div>
+		<div class="divider" aria-hidden="true"><span>or</span></div>
+	{/if}
 
 	{#if mode === 'signup'}
 		<label>
@@ -168,17 +204,26 @@
 		<input bind:value={email} type="email" required autocomplete="email" placeholder="you@email.com" />
 	</label>
 
-	<label>
-		<span>Password</span>
-		<input
-			bind:value={password}
-			type="password"
-			required
-			minlength="6"
-			autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
-			placeholder="••••••••"
-		/>
-	</label>
+	{#if mode !== 'forgot'}
+		<label class="password-field">
+			<span class="password-field__label">
+				<span>Password</span>
+				{#if mode === 'login'}
+					<button type="button" class="forgot-link" onclick={() => setMode('forgot')}>
+						Forgot password?
+					</button>
+				{/if}
+			</span>
+			<input
+				bind:value={password}
+				type="password"
+				required
+				minlength="6"
+				autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
+				placeholder="••••••••"
+			/>
+		</label>
+	{/if}
 
 	{#if error}
 		<p class="alert alert--error" role="alert">{error}</p>
@@ -188,20 +233,22 @@
 	{/if}
 
 	<button type="submit" disabled={loading || oauthLoading}>
-		{loading ? 'Working…' : mode === 'login' ? 'Sign in' : 'Sign up'}
+		{submitLabel}
 	</button>
 
-	<button
-		type="button"
-		class="linkish"
-		onclick={() => {
-			mode = mode === 'login' ? 'signup' : 'login';
-			error = '';
-			message = '';
-		}}
-	>
-		{mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Sign in'}
-	</button>
+	{#if mode === 'forgot'}
+		<button type="button" class="linkish" onclick={() => setMode('login')}>
+			Back to sign in
+		</button>
+	{:else}
+		<button
+			type="button"
+			class="linkish"
+			onclick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+		>
+			{mode === 'login' ? 'Need an account? Sign up' : 'Already have an account? Sign in'}
+		</button>
+	{/if}
 </form>
 
 <style>
@@ -270,6 +317,28 @@
 		gap: 0.35rem;
 		font-size: 0.8rem;
 		color: var(--text-muted);
+	}
+
+	.password-field__label {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+	}
+
+	.forgot-link {
+		border: none;
+		background: transparent;
+		color: var(--accent);
+		cursor: pointer;
+		font: inherit;
+		font-size: 0.8rem;
+		padding: 0;
+		min-height: auto;
+	}
+
+	.forgot-link:hover {
+		text-decoration: underline;
 	}
 
 	input {
