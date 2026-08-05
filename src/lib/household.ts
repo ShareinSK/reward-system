@@ -24,6 +24,10 @@ export async function fetchHousehold(householdId: string): Promise<Household> {
 		allow_negative_points: Boolean(row.allow_negative_points),
 		allow_decimal_points: Boolean(row.allow_decimal_points),
 		experience_mode: row.experience_mode === 'goals' ? 'goals' : 'kids',
+		timezone:
+			typeof row.timezone === 'string' && row.timezone.trim()
+				? row.timezone.trim()
+				: 'America/Chicago',
 		disabled: Boolean(row.disabled),
 		created_by: row.created_by ?? null,
 		created_at: row.created_at ?? new Date().toISOString()
@@ -91,6 +95,17 @@ export async function renameHousehold(householdId: string, name: string): Promis
 	const { error } = await supabase
 		.from('households')
 		.update({ name: name.trim() })
+		.eq('id', householdId);
+	if (error) throw error;
+}
+
+export async function updateHouseholdTimezone(
+	householdId: string,
+	timezone: string
+): Promise<void> {
+	const { error } = await supabase
+		.from('households')
+		.update({ timezone: timezone.trim() || 'America/Chicago' })
 		.eq('id', householdId);
 	if (error) throw error;
 }

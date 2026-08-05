@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { fetchActivities } from '$lib/api';
+	import { fetchActivities, fetchParticipants } from '$lib/api';
 	import UpgradeBanner from '$lib/components/UpgradeBanner.svelte';
 	import { fetchPlanLimits, isAtCap, parsePlanLimitError } from '$lib/entitlements';
 	import { copyFor } from '$lib/experience';
 	import { isFeatureEnabled } from '$lib/featureFlags';
 	import { ensureHouseholdId, fetchHousehold } from '$lib/household';
 	import { setActiveHouseholdId } from '$lib/householdStore';
+	import { normalizeTimeOfDay, timeOfDayLabel } from '$lib/questReminders';
 	import {
 		formatPoints,
 		normalizePoints,
@@ -13,16 +14,27 @@
 		settingsFromHousehold
 	} from '$lib/settings';
 	import { supabase } from '$lib/supabase';
-	import type { Activity, ExperienceMode, HouseholdSettings, PlanLimits } from '$lib/types';
-	import { DEFAULT_HOUSEHOLD_SETTINGS, FREE_LIMITS } from '$lib/types';
+	import type {
+		Activity,
+		ExperienceMode,
+		HouseholdSettings,
+		Participant,
+		PlanLimits,
+		TimeOfDay
+	} from '$lib/types';
+	import { DEFAULT_HOUSEHOLD_SETTINGS, FREE_LIMITS, TIME_OF_DAY_OPTIONS } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
 	let activities = $state<Activity[]>([]);
+	let participants = $state<Participant[]>([]);
 	let settings = $state<HouseholdSettings>({ ...DEFAULT_HOUSEHOLD_SETTINGS });
 	let title = $state('');
 	let defaultPoints = $state(1);
 	let allowNegative = $state(false);
+	let timeOfDay = $state<TimeOfDay>('all_day');
+	/** Empty string = everyone */
+	let assigneeId = $state('');
 	let error = $state('');
 	let loading = $state(true);
 	let limits = $state<PlanLimits>({ ...FREE_LIMITS });
@@ -34,6 +46,12 @@
 	const atCap = $derived(isAtCap(activities.length, limits.max_activities));
 	const label = $derived(copyFor(mode, 'activity'));
 	const labelPlural = $derived(copyFor(mode, 'activities'));
+	const questorLabel = $derived(copyFor(mode, 'participant'));
+
+	function participantName(id: string | null): string {
+		if (!id) return 'Everyone';
+		return participants.find((p) => p.id === id)?.name ?? 'Questor';
+	}
 
 	async function load() {
 		loading = true;
@@ -47,14 +65,16 @@
 			}
 			const hid = await ensureHouseholdId();
 			setActiveHouseholdId(hid);
-			const [list, household, lim, billing, pricing] = await Promise.all([
+			const [list, people, household, lim, billing, pricing] = await Promise.all([
 				fetchActivities(),
+				fetchParticipants(),
 				fetchHousehold(hid),
 				fetchPlanLimits(hid),
 				isFeatureEnabled('billing_checkout', hid),
 				isFeatureEnabled('billing_pricing', hid)
 			]);
 			activities = list;
+			participants = people;
 			settings = settingsFromHousehold(household);
 			limits = lim;
 			mode = household.experience_mode;
@@ -81,10 +101,14 @@
 		}
 		const points = normalizePoints(Number(defaultPoints), {
 			...settings,
-			allow_negative_points: true // defaults can be positive-only via min; allow normalize rounding
+			allow_negative_points: true
 		});
 		if (Number.isNaN(points) || points === 0) {
 			error = 'Default XP must be a non-zero number.';
+			return;
+		}
+		if (assigneeId && !participants.some((p) => p.id === assigneeId)) {
+			error = `Choose a valid ${questorLabel.toLowerCase()} or Everyone.`;
 			return;
 		}
 		const {
@@ -96,6 +120,8 @@
 			title: title.trim(),
 			default_points: Math.abs(points),
 			allow_negative: settings.allow_negative_points ? allowNegative : false,
+			time_of_day: timeOfDay,
+			assignee_participant_id: assigneeId || null,
 			created_by: user?.id ?? null,
 			household_id
 		});
@@ -107,7 +133,22 @@
 		title = '';
 		defaultPoints = 1;
 		allowNegative = false;
+		timeOfDay = 'all_day';
+		assigneeId = '';
 		await load();
+	}
+
+	async function updateActivityField(
+		id: string,
+		patch: Partial<Pick<Activity, 'time_of_day' | 'assignee_participant_id'>>
+	) {
+		error = '';
+		const { error: updateError } = await supabase.from('activities').update(patch).eq('id', id);
+		if (updateError) {
+			error = updateError.message;
+			return;
+		}
+		activities = activities.map((a) => (a.id === id ? { ...a, ...patch } : a));
 	}
 
 	async function removeActivity(id: string) {
@@ -144,13 +185,30 @@
 
 	{#if !atCap}
 		<form class="form" onsubmit={addActivity}>
-			<label>
+			<label class="grow">
 				<span>Title</span>
 				<input bind:value={title} required placeholder="Completed project milestone" />
 			</label>
 			<label>
 				<span>Default XP</span>
 				<input bind:value={defaultPoints} type="number" step={step} min="1" required />
+			</label>
+			<label>
+				<span>Expected time</span>
+				<select bind:value={timeOfDay} required>
+					{#each TIME_OF_DAY_OPTIONS as opt}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+			</label>
+			<label>
+				<span>For</span>
+				<select bind:value={assigneeId}>
+					<option value="">Everyone</option>
+					{#each participants as p (p.id)}
+						<option value={p.id}>{p.name}</option>
+					{/each}
+				</select>
 			</label>
 			{#if settings.allow_negative_points}
 				<label class="check">
@@ -172,12 +230,48 @@
 		<ul>
 			{#each activities as a (a.id)}
 				<li>
-					<div>
+					<div class="row-main">
 						<strong>{a.title}</strong>
 						<span class="muted"
 							>{formatPoints(Number(a.default_points), settings.allow_decimal_points)} XP
-							{#if settings.allow_negative_points && a.allow_negative}· negatives OK{/if}</span
+							{#if settings.allow_negative_points && a.allow_negative}· negatives OK{/if}
+							· {timeOfDayLabel(normalizeTimeOfDay(a.time_of_day))}
+							· {participantName(a.assignee_participant_id)}</span
 						>
+						<div class="row-edits">
+							<label>
+								<span class="sr-only">Expected time</span>
+								<select
+									value={normalizeTimeOfDay(a.time_of_day)}
+									onchange={(e) =>
+										updateActivityField(a.id, {
+											time_of_day: (e.currentTarget as HTMLSelectElement)
+												.value as TimeOfDay
+										})}
+								>
+									{#each TIME_OF_DAY_OPTIONS as opt}
+										<option value={opt.value}>{opt.label}</option>
+									{/each}
+								</select>
+							</label>
+							<label>
+								<span class="sr-only">Assignee</span>
+								<select
+									value={a.assignee_participant_id ?? ''}
+									onchange={(e) => {
+										const v = (e.currentTarget as HTMLSelectElement).value;
+										updateActivityField(a.id, {
+											assignee_participant_id: v || null
+										});
+									}}
+								>
+									<option value="">Everyone</option>
+									{#each participants as p (p.id)}
+										<option value={p.id}>{p.name}</option>
+									{/each}
+								</select>
+							</label>
+						</div>
 					</div>
 					<button type="button" onclick={() => removeActivity(a.id)}>Remove</button>
 				</li>
@@ -232,6 +326,9 @@
 			flex-wrap: wrap;
 			align-items: end;
 		}
+		.form .grow {
+			flex: 1 1 12rem;
+		}
 	}
 	label {
 		display: grid;
@@ -251,7 +348,8 @@
 		height: 1.15rem;
 		accent-color: var(--accent);
 	}
-	input:not([type='checkbox']) {
+	input:not([type='checkbox']),
+	select {
 		border-radius: 0.75rem;
 		border: 1px solid var(--border);
 		background: var(--surface-strong);
@@ -263,8 +361,12 @@
 		box-sizing: border-box;
 	}
 	@media (min-width: 640px) {
-		input:not([type='checkbox']) {
+		input:not([type='checkbox']):not(.grow input),
+		select {
 			width: 11rem;
+		}
+		.form .grow input {
+			width: 100%;
 		}
 	}
 	button {
@@ -313,9 +415,10 @@
 	li:active {
 		transform: scale(0.98);
 	}
-	li div {
+	.row-main {
 		display: grid;
-		gap: 0.15rem;
+		gap: 0.45rem;
+		flex: 1 1 12rem;
 	}
 	li strong {
 		font-family: var(--font-display);
@@ -324,6 +427,18 @@
 		color: var(--amber);
 		font-family: var(--font-display);
 		font-weight: 600;
+	}
+	.row-edits {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+	}
+	.row-edits select {
+		width: auto;
+		min-width: 8.5rem;
+		padding: 0.45rem 0.65rem;
+		min-height: 40px;
+		font-size: 0.85rem;
 	}
 	li button {
 		background: var(--surface-strong);
@@ -336,5 +451,16 @@
 	}
 	.alert {
 		color: var(--danger-text);
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 </style>

@@ -1,0 +1,13 @@
+# QuestorLog / reward-app local Supabase CLI config.
+# https://supabase.com/docs/guides/cli/config
+
+[functions.quest-reminder]
+# Cron uses NOTIFICATION_CRON_SECRET (checked inside the function), not a user JWT.
+verify_jwt = false
+
+[functions.send-notifications]
+# Legacy alias; same auth model as quest-reminder.
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
